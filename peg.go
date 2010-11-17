@@ -766,49 +766,73 @@ func (t *Tree) Compile(file string) {
 		return
 	}
 	defer out.Close()
-	print := func(format string, a ...interface{}) { fmt.Fprintf(out, format, a...) }
-	printSave := func(n uint) { print("\n   position%d := position", n) }
-	printRestore := func(n uint) { print("   position = position%d", n) }
+
+	print := func(format string, a ...interface{}) {
+		fmt.Fprintf(out, format, a...)
+	}
+	indent := 2
+	nliPrint := func(format string, a ...interface{}) {
+		s := "\n"
+		for i:=0; i<indent; i++ {
+			s += "\t"
+		}
+		print(s+format, a...)
+	}
+	nliPrintGotoIf := func(label uint, format string, a ...interface{}) {
+		nliPrint("if "+format, a...)
+		print(" {")
+		nliPrint("\tgoto l%d", label)
+		nliPrint("}")
+	}
+	printSave := func(n uint) { nliPrint("position%d := position", n) }
+	printRestore := func(n uint) { nliPrint("position = position%d", n) }
 
 	print(
 		`package %v
+
 import "fmt"
+
 type %v struct {%v
- Buffer string
- Min, Max int
- rules [%d]func() bool
+	Buffer string
+	Min, Max int
+	rules [%d]func() bool
 }
+
 func (p *%v) Parse() bool {
- if p.rules[0]() {
-  return true
- }
- return false
+	if p.rules[0]() {
+		return true
+	}
+	return false
 }
 func (p *%v) PrintError() {
- line := 1
- character := 0
- for i, c := range p.Buffer[0:] {
-  if c == '\n' {
-   line++
-   character = 0
-  } else {
-   character++
-  }
-  if i == p.Min {
-   if p.Min != p.Max {
-    fmt.Printf("parse error after line %%v character %%v\n", line, character)
-   } else {break}
-  } else if i == p.Max {break}
- }
- fmt.Printf("parse error: unexpected ")
- if p.Max >= len(p.Buffer) {
-  fmt.Printf("end of file found\n")
- } else {
-  fmt.Printf("'%%c' at line %%v character %%v\n", p.Buffer[p.Max], line, character)
- }
+	line := 1
+	character := 0
+	for i, c := range p.Buffer[0:] {
+		if c == '\n' {
+			line++
+			character = 0
+		} else {
+			character++
+		}
+		if i == p.Min {
+			if p.Min != p.Max {
+				fmt.Printf("parse error after line %%v character %%v\n", line, character)
+			} else {
+				break
+			}
+		} else if i == p.Max {
+			break
+		}
+	}
+	fmt.Printf("parse error: unexpected ")
+	if p.Max >= len(p.Buffer) {
+		fmt.Printf("end of file found\n")
+	} else {
+		fmt.Printf("'%%c' at line %%v character %%v\n", p.Buffer[p.Max], line, character)
+	}
 }
 func (p *%v) Init() {
- var position int`,
+	var position int`,
 		_package, name, state, len(t.rules), name, name, name)
 
 	hasActions := t.actions.Len() != 0
@@ -827,125 +851,126 @@ func (p *%v) Init() {
 		case bits < 64:
 			bits = 64
 		}
-		print("\n actions := [...]func(buffer string, begin, end int) {\n")
+		print("\n\tactions := [...]func(buffer string, begin, end int){\n")
 		for i := t.actions.Front(); i != nil; i = i.Next() {
 			a := i.Value.(Action)
-			print("  /* %v %v */\n", a.GetId(), a.GetRule())
-			print("  func(buffer string, begin, end int) {\n")
-			print("   %v\n", a)
-			print("  },\n")
+			print("\t\t/* %v %v */\n", a.GetId(), a.GetRule())
+			print("\t\tfunc(buffer string, begin, end int) {\n")
+			print("\t\t\t%v\n", a)
+			print("\t\t},\n")
 		}
 		print(
-			` }
- var thunkPosition, begin, end int
- thunks := make([]struct {action uint%d; begin, end int}, 32)
- do := func(action uint%d) {
-  if thunkPosition == len(thunks) {
-   newThunks := make([]struct {action uint%d; begin, end int}, 2 * len(thunks))
-   copy(newThunks, thunks)
-   thunks = newThunks
-  }
-  thunks[thunkPosition].action = action
-  thunks[thunkPosition].begin = begin
-  thunks[thunkPosition].end = end
-  thunkPosition++
- }`,
-			bits, bits, bits)
+			`	}
+`+`	var thunkPosition, begin, end int
+`+`	thunks := make([]struct {action uint%d; begin, end int}, 32)
+`+`	do := func(action uint%d) {
+`+`		if thunkPosition == len(thunks) {
+`+`			newThunks := make([]struct {action uint%d; begin, end int}, 2 * len(thunks))
+`+`			copy(newThunks, thunks)
+`+`			thunks = newThunks
+`+`		}
+`+`		thunks[thunkPosition].action = action
+`+`		thunks[thunkPosition].begin = begin
+`+`		thunks[thunkPosition].end = end
+`+`		thunkPosition++
+`+`	}`, bits, bits, bits)
 		if counts[TypeCommit] > 0 {
 			print(
 				`
- commit := func(thunkPosition0 int) bool {
-  if thunkPosition0 == 0 {
-   for thunk := 0; thunk < thunkPosition; thunk++ {
-    actions[thunks[thunk].action](p.Buffer, thunks[thunk].begin, thunks[thunk].end)
-   }
-   p.Min = position
-   thunkPosition = 0
-   return true
-  }
-  return false
- }`)
+`+`	commit := func(thunkPosition0 int) bool {
+`+`		if thunkPosition0 == 0 {
+`+`			for thunk := 0; thunk < thunkPosition; thunk++ {
+`+`				actions[thunks[thunk].action](p.Buffer, thunks[thunk].begin, thunks[thunk].end)
+`+`			}
+`+`			p.Min = position
+`+`			thunkPosition = 0
+`+`			return true
+`+`		}
+`+`		return false
+`+`	}`)
 		}
-		printSave = func(n uint) { print("\n   position%d,  thunkPosition%d := position, thunkPosition", n, n) }
-		printRestore = func(n uint) { print("   position, thunkPosition = position%d, thunkPosition%d", n, n) }
+		printSave = func(n uint) { nliPrint("position%d, thunkPosition%d := position, thunkPosition", n, n) }
+		printRestore = func(n uint) { nliPrint("position, thunkPosition = position%d, thunkPosition%d", n, n) }
 	}
 
 	if counts[TypeDot] > 0 {
 		print(
 			`
- matchDot := func() bool {
-  if position < len(p.Buffer) {
-   position++
-   return true
-  } else if position >= p.Max {
-   p.Max = position
-  }
-  return false
- }`)
+`+`	matchDot := func() bool {
+`+`		if position < len(p.Buffer) {
+`+`			position++
+`+`			return true
+`+`		} else if position >= p.Max {
+`+`			p.Max = position
+`+`		}
+`+`		return false
+`+`	}`)
 	}
 	if counts[TypeCharacter] > 0 {
 		print(
 			`
- matchChar := func(c byte) bool {
-  if (position < len(p.Buffer)) && (p.Buffer[position] == c) {
-   position++
-   return true
-  } else if position >= p.Max {
-   p.Max = position
-  }
-  return false
- }`)
+`+`	matchChar := func(c byte) bool {
+`+`		if (position < len(p.Buffer)) && (p.Buffer[position] == c) {
+`+`			position++
+`+`			return true
+`+`		} else if position >= p.Max {
+`+`			p.Max = position
+`+`		}
+`+`		return false
+`+`	}`)
 	}
 	if counts[TypeString] > 0 {
 		print(
 			`
- matchString := func(s string) bool {
-  length := len(s)
-  next := position + length
-  if (next <= len(p.Buffer)) && (p.Buffer[position:next] == s) {
-   position = next
-   return true
-  } else if position >= p.Max {
-   p.Max = position
-  }
-  return false
- }`)
+`+`	matchString := func(s string) bool {
+`+`		length := len(s)
+`+`		next := position + length
+`+`		if (next <= len(p.Buffer)) && (p.Buffer[position:next] == s) {
+`+`			position = next
+`+`			return true
+`+`		} else if position >= p.Max {
+`+`			p.Max = position
+`+`		}
+`+`		return false
+`+`	}`)
 	}
 
 	classes := make(map[string]uint)
 	if len(t.classes) != 0 {
-		print("\n classes := [...][32]uint8 {\n")
+		print("\n\tclasses := [...][32]uint8{\n")
 		var index uint
 		for className, classBitmap := range t.classes {
 			classes[className] = index
-			print("  [32]uint8{")
+			print("\t\t{")
+			sep := ""
 			for _, b := range *classBitmap {
-				print("%d, ", b)
+				print("%s%d", sep, b)
+				sep = ", "
 			}
 			print("},\n")
 			index++
 		}
 		print(
-			` }
- matchClass := func(class uint) bool {
-  if (position < len(p.Buffer)) &&
-     ((classes[class][p.Buffer[position] >> 3] & (1 << (p.Buffer[position] & 7))) != 0) {
-   position++
-   return true
-  } else if position >= p.Max {
-   p.Max = position
-  }
-  return false
- }`)
+			`	}
+`+`	matchClass := func(class uint) bool {
+`+`		if (position < len(p.Buffer)) &&
+`+`			((classes[class][p.Buffer[position]>>3] & (1 << (p.Buffer[position] & 7))) != 0) {
+`+`			position++
+`+`			return true
+`+`		} else if position >= p.Max {
+`+`			p.Max = position
+`+`		}
+`+`		return false
+`+`	}`)
 	}
 
 	var printRule func(node Node)
 	var compile func(expression Node, ko uint)
 	var label uint
-	printBegin := func() { print("\n   {") }
-	printEnd := func() { print("\n   }") }
-	printLabel := func(n uint) { print("\n   l%d:\t", n) }
-	printJump := func(n uint) { print("\n   goto l%d", n) }
+	printBegin := func() { nliPrint("{"); indent++ }
+	printEnd := func() { indent--; nliPrint("}") }
+	printLabel := func(n uint) { indent--; nliPrint("l%d:", n); indent++ }
+	printJump := func(n uint) { nliPrint("goto l%d", n) }
 	printRule = func(node Node) {
 		switch node.GetType() {
 		case TypeRule:
@@ -1028,7 +1053,7 @@ func (p *%v) Init() {
 		case TypeRule:
 			fmt.Fprintf(os.Stderr, "internal error #1 (%v)\n", node)
 		case TypeDot:
-			print("\n   if !matchDot() {goto l%d}", ko)
+			nliPrintGotoIf(ko, "!matchDot()")
 		case TypeName:
 			name := node.String()
 			rule := t.rules[name]
@@ -1036,26 +1061,26 @@ func (p *%v) Init() {
 				compile(rule.GetExpression(), ko)
 				return
 			}
-			print("\n   if !p.rules[%d]() {goto l%d}", rule.GetId(), ko)
+			nliPrintGotoIf(ko, "!p.rules[%d]()", rule.GetId())
 		case TypeCharacter:
-			print("\n   if !matchChar('%v') {goto l%d}", node, ko)
+			nliPrintGotoIf(ko, "!matchChar('%v')", node)
 		case TypeString:
-			print("\n   if !matchString(\"%v\") {goto l%d}", node, ko)
+			nliPrintGotoIf(ko, "!matchString(\"%v\")", node)
 		case TypeClass:
-			print("\n   if !matchClass(%d) {goto l%d}", classes[node.String()], ko)
+			nliPrintGotoIf(ko, "!matchClass(%d)", classes[node.String()])
 		case TypePredicate:
-			print("\n   if !(%v) {goto l%d}", node, ko)
+			nliPrintGotoIf(ko, "if !(%v)", node)
 		case TypeAction:
-			print("\n   do(%d)", node.(Action).GetId())
+			nliPrint("do(%d)", node.(Action).GetId())
 		case TypeCommit:
-			print("\n   if !(commit(thunkPosition0)) {goto l%d}", ko)
+			nliPrintGotoIf(ko, "!(commit(thunkPosition0))")
 		case TypeBegin:
 			if hasActions {
-				print("\n   begin = position")
+				nliPrint("begin = position")
 			}
 		case TypeEnd:
 			if hasActions {
-				print("\n   end = position")
+				nliPrint("end = position")
 			}
 		case TypeAlternate:
 			list := node.(List)
@@ -1097,14 +1122,14 @@ func (p *%v) Init() {
 				label++
 				printSave(ok)
 			}
-			print("\n   if position == len(p.Buffer) {goto l%d}", done)
-			print("\n   switch p.Buffer[position] {")
+			nliPrintGotoIf(done, "position == len(p.Buffer)")
+			nliPrint("switch p.Buffer[position] {")
 			element := list.Front()
 			for ; element.Next() != nil; element = element.Next() {
 				sequence := element.Value.(List).Front()
 				class := sequence.Value.(Fix).GetNode().(Token).GetClass()
 				sequence = sequence.Next()
-				print("\n   case")
+				nliPrint("case")
 				comma := false
 				for d := 0; d < 256; d++ {
 					if class.has(uint8(d)) {
@@ -1137,11 +1162,15 @@ func (p *%v) Init() {
 					}
 				}
 				print(":")
+				indent++
 				compile(sequence.Value.(Node), done)
+				indent--
 			}
-			print("\n   default:")
+			nliPrint("default:")
+			indent++
 			compile(element.Value.(List).Front().Next().Value.(Node), done)
-			print("\n   }")
+			indent--
+			nliPrint("}")
 			if list.GetLastIsEmpty() {
 				printJump(ok)
 				printLabel(done)
@@ -1216,7 +1245,7 @@ func (p *%v) Init() {
 		}
 	}
 
-	print("\n p.rules = [...]func() bool {")
+	print("\n\tp.rules = [...]func() bool{")
 	for element := t.Front(); element != nil; element = element.Next() {
 		node := element.Value.(Node)
 		if node.GetType() != TypeRule {
@@ -1226,35 +1255,37 @@ func (p *%v) Init() {
 		expression := rule.GetExpression()
 		if expression == nil {
 			fmt.Fprintf(os.Stderr, "rule '%v' used but not defined\n", rule)
-			print("\n  nil,")
+			nliPrint("nil,")
 			continue
 		}
 		ko := label
 		label++
-		print("\n  /* %v ", rule.GetId())
+		nliPrint("/* %v ", rule.GetId())
 		printRule(rule)
 		print(" */")
 		if count, ok := t.rulesCount[rule.String()]; !ok {
 			fmt.Fprintf(os.Stderr, "rule '%v' defined but not used\n", rule)
-			print("\n  nil,")
+			nliPrint("nil,")
 			continue
 		} else if t.inline && count == 1 && ko != 0 {
-			print("\n  nil,")
+			nliPrint("nil,")
 			continue
 		}
-		print("\n  func() bool {")
+		nliPrint("func() bool {")
+		indent++
 		if !expression.GetType().IsSafe() {
 			printSave(0)
 		}
 		compile(expression, ko)
-		print("\n   return true")
+		nliPrint("return true")
 		if !expression.GetType().IsSafe() {
 			printLabel(ko)
 			printRestore(0)
-			print("\n   return false")
+			nliPrint("return false")
 		}
-		print("\n  },")
+		indent--
+		nliPrint("},")
 	}
-	print("\n }")
+	print("\n\t}")
 	print("\n}\n")
 }
