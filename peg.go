@@ -26,8 +26,6 @@ const (
 	TypeBegin
 	TypeEnd
 	TypeAction
-	TypePackage
-	TypeState
 	TypeAlternate
 	TypeUnorderedAlternate
 	TypeSequence
@@ -36,7 +34,6 @@ const (
 	TypeQuery
 	TypeStar
 	TypePlus
-	TypePeg
 	TypeLast
 )
 
@@ -299,6 +296,7 @@ type Tree struct {
 	list.List
 	actions         list.List
 	classes         map[string]*characterClass
+	defines         map[string]string
 	stack           [1024]Node
 	top             int
 	inline, _switch bool
@@ -308,6 +306,11 @@ func New(inline, _switch bool) *Tree {
 	return &Tree{rules: make(map[string]*rule),
 		rulesCount: make(map[string]uint),
 		classes:    make(map[string]*characterClass),
+		defines:	map[string]string{
+			"package": "",
+			"Peg": "",
+			"userstate": "",
+		},
 		inline:     inline,
 		_switch:    _switch}
 }
@@ -421,11 +424,10 @@ func (t *Tree) AddAction(text string) {
 	t.actions.PushBack(a)
 	t.push(a)
 }
-func (t *Tree) AddPackage(text string) { t.PushBack(&token{Type: TypePackage, string: text}) }
-func (t *Tree) AddState(text string) {
-	peg := t.pop().(Fix)
-	peg.SetNode(&token{Type: TypeState, string: text})
-	t.PushBack(peg)
+func (t *Tree) Define(name, text string) {
+	if _, ok := t.defines[name]; ok {
+		t.defines[name] = text
+	}
 }
 
 func (t *Tree) addList(listType Type) {
@@ -462,7 +464,6 @@ func (t *Tree) AddPeekNot()         { t.addFix(TypePeekNot) }
 func (t *Tree) AddQuery()           { t.addFix(TypeQuery) }
 func (t *Tree) AddStar()            { t.addFix(TypeStar) }
 func (t *Tree) AddPlus()            { t.addFix(TypePlus) }
-func (t *Tree) AddPeg(text string)  { t.push(&fix{Type: TypePeg, string: text}) }
 
 func join(tasks []func()) {
 	length := len(tasks)
@@ -475,17 +476,10 @@ func join(tasks []func()) {
 }
 
 func (t *Tree) Compile(file string) {
-	_package, state, name, counts :=
-		"", "", "", [TypeLast]uint{}
+	counts := [TypeLast]uint{}
 	for element := t.Front(); element != nil; element = element.Next() {
 		node := element.Value.(Node)
 		switch node.GetType() {
-		case TypePackage:
-			_package = node.(Token).String()
-		case TypePeg:
-			peg := node.(Fix)
-			name = peg.String()
-			state = peg.GetNode().(Token).String()
 		case TypeRule:
 			rule := node.(*rule)
 			t.rules[rule.String()] = rule
@@ -787,6 +781,7 @@ func (t *Tree) Compile(file string) {
 	printSave := func(n uint) { nliPrint("position%d := position", n) }
 	printRestore := func(n uint) { nliPrint("position = position%d", n) }
 
+	pegname := t.defines["Peg"]
 	print(
 		`package %v
 
@@ -833,7 +828,7 @@ func (p *%v) PrintError() {
 }
 func (p *%v) Init() {
 	var position int`,
-		_package, name, state, len(t.rules), name, name, name)
+		t.defines["package"], pegname, t.defines["userstate"], len(t.rules), pegname, pegname, pegname)
 
 	hasActions := t.actions.Len() != 0
 	if hasActions {

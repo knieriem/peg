@@ -18,15 +18,15 @@ func main() {
    type Peg Peg {
     *Tree
    }*/
- t.AddPackage("peg")
- t.AddPeg("Peg")
- t.AddState( `
+ t.Define("package", "peg")
+ t.Define("Peg", "Peg")
+ t.Define("userstate", `
  *Tree
 `)
 
- /* Grammar         <- Spacing 'package' Spacing Identifier      { p.AddPackage(yytext) }
-                               'type' Spacing Identifier         { p.AddPeg(yytext) }
-                               'Peg' Spacing Action              { p.AddState(yytext) }
+ /* Grammar         <- Spacing 'package' Spacing Identifier      { p.Define("package", yytext) }
+                               'type' Spacing Identifier         { p.Define("Peg", yytext) }
+                               'Peg' Spacing Action              { p.Define("userstate", yytext) }
                                commit
                                Definition+ EndOfFile */
  t.AddRule("Grammar")
@@ -37,7 +37,7 @@ func main() {
  t.AddSequence()
  t.AddName("Identifier")
  t.AddSequence()
- t.AddAction(" p.AddPackage(yytext) ")
+ t.AddAction(` p.Define("package", yytext) `)
  t.AddSequence()
  t.AddString("type")
  t.AddSequence()
@@ -45,7 +45,7 @@ func main() {
  t.AddSequence()
  t.AddName("Identifier")
  t.AddSequence()
- t.AddAction(" p.AddPeg(yytext) ")
+ t.AddAction(` p.Define("Peg", yytext) `)
  t.AddSequence()
  t.AddString("Peg")
  t.AddSequence()
@@ -53,7 +53,7 @@ func main() {
  t.AddSequence()
  t.AddName("Action")
  t.AddSequence()
- t.AddAction(" p.AddState(yytext) ")
+ t.AddAction(` p.Define("userstate", yytext) `)
  t.AddSequence()
  t.AddCommit()
  t.AddSequence()

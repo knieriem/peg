@@ -18,9 +18,9 @@ type Peg Peg {
 
 # Hierarchical syntax
 
-Grammar		<- Spacing 'package' Spacing Identifier      { p.AddPackage(yytext) }
-                           'type' Spacing Identifier         { p.AddPeg(yytext) }
-                           'Peg' Spacing Action              { p.AddState(yytext) }
+Grammar		<- Spacing 'package' Spacing Identifier      { p.Define("package", yytext) }
+                           'type' Spacing Identifier         { p.Define("Peg", yytext) }
+                           'Peg' Spacing Action              { p.Define("userstate", yytext) }
                            commit
                            Definition+ EndOfFile
 
