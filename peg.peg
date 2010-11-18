@@ -18,13 +18,13 @@ type Peg Peg {
 
 # Hierarchical syntax
 
-Grammar		<- Spacing 'package' Spacing Identifier      { p.AddPackage(buffer[begin:end]) }
-                           'type' Spacing Identifier         { p.AddPeg(buffer[begin:end]) }
-                           'Peg' Spacing Action              { p.AddState(buffer[begin:end]) }
+Grammar		<- Spacing 'package' Spacing Identifier      { p.AddPackage(yytext) }
+                           'type' Spacing Identifier         { p.AddPeg(yytext) }
+                           'Peg' Spacing Action              { p.AddState(yytext) }
                            commit
                            Definition+ EndOfFile
 
-Definition	<- Identifier 			{ p.AddRule(buffer[begin:end]) }
+Definition	<- Identifier 			{ p.AddRule(yytext) }
 		     LEFTARROW Expression	{ p.AddExpression() } &(Identifier LEFTARROW / !.) commit
 Expression	<- Sequence (SLASH Sequence	{ p.AddAlternate() }
 			    )* (SLASH           { p.AddEmptyAlternate() }
@@ -32,7 +32,7 @@ Expression	<- Sequence (SLASH Sequence	{ p.AddAlternate() }
                  /
 Sequence	<- Prefix (Prefix		{ p.AddSequence() }
 			  )*
-Prefix		<- AND Action			{ p.AddPredicate(buffer[begin:end]) }
+Prefix		<- AND Action			{ p.AddPredicate(yytext) }
 		 / AND Suffix			{ p.AddPeekFor() }
 		 / NOT Suffix			{ p.AddPeekNot() }
 		 /     Suffix
@@ -41,12 +41,12 @@ Suffix          <- Primary (QUESTION            { p.AddQuery() }
                            / PLUS               { p.AddPlus() }
                            )?
 Primary	        <- 'commit' Spacing             { p.AddCommit() }
-                 / Identifier !LEFTARROW        { p.AddName(buffer[begin:end]) }
+                 / Identifier !LEFTARROW        { p.AddName(yytext) }
                  / OPEN Expression CLOSE
-                 / Literal                      { p.AddString(buffer[begin:end]) }
-                 / Class                        { p.AddClass(buffer[begin:end]) }
+                 / Literal                      { p.AddString(yytext) }
+                 / Class                        { p.AddClass(yytext) }
                  / DOT                          { p.AddDot() }
-                 / Action                       { p.AddAction(buffer[begin:end]) }
+                 / Action                       { p.AddAction(yytext) }
                  / BEGIN                        { p.AddBegin() }
                  / END                          { p.AddEnd() }
 

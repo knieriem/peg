@@ -851,11 +851,11 @@ func (p *%v) Init() {
 		case bits < 64:
 			bits = 64
 		}
-		print("\n\tactions := [...]func(buffer string, begin, end int){\n")
+		print("\n\tactions := [...]func(string){\n")
 		for i := t.actions.Front(); i != nil; i = i.Next() {
 			a := i.Value.(Action)
 			print("\t\t/* %v %v */\n", a.GetId(), a.GetRule())
-			print("\t\tfunc(buffer string, begin, end int) {\n")
+			print("\t\tfunc(yytext string) {\n")
 			print("\t\t\t%v\n", a)
 			print("\t\t},\n")
 		}
@@ -879,8 +879,14 @@ func (p *%v) Init() {
 				`
 `+`	commit := func(thunkPosition0 int) bool {
 `+`		if thunkPosition0 == 0 {
-`+`			for thunk := 0; thunk < thunkPosition; thunk++ {
-`+`				actions[thunks[thunk].action](p.Buffer, thunks[thunk].begin, thunks[thunk].end)
+`+`			for i := 0; i < thunkPosition; i++ {
+`+`				b := thunks[i].begin
+`+`				e := thunks[i].end
+`+`				s := ""
+`+`				if b>=0 && e<=len(p.Buffer) && b<=e {
+`+`					s = p.Buffer[b:e]
+`+`				}
+`+`				actions[thunks[i].action](s)
 `+`			}
 `+`			p.Min = position
 `+`			thunkPosition = 0

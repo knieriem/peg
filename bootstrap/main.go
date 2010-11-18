@@ -24,9 +24,9 @@ func main() {
  *Tree
 `)
 
- /* Grammar         <- Spacing 'package' Spacing Identifier      { p.AddPackage(buffer[begin:end]) }
-                               'type' Spacing Identifier         { p.AddPeg(buffer[begin:end]) }
-                               'Peg' Spacing Action              { p.AddState(buffer[begin:end]) }
+ /* Grammar         <- Spacing 'package' Spacing Identifier      { p.AddPackage(yytext) }
+                               'type' Spacing Identifier         { p.AddPeg(yytext) }
+                               'Peg' Spacing Action              { p.AddState(yytext) }
                                commit
                                Definition+ EndOfFile */
  t.AddRule("Grammar")
@@ -37,7 +37,7 @@ func main() {
  t.AddSequence()
  t.AddName("Identifier")
  t.AddSequence()
- t.AddAction(" p.AddPackage(buffer[begin:end]) ")
+ t.AddAction(" p.AddPackage(yytext) ")
  t.AddSequence()
  t.AddString("type")
  t.AddSequence()
@@ -45,7 +45,7 @@ func main() {
  t.AddSequence()
  t.AddName("Identifier")
  t.AddSequence()
- t.AddAction(" p.AddPeg(buffer[begin:end]) ")
+ t.AddAction(" p.AddPeg(yytext) ")
  t.AddSequence()
  t.AddString("Peg")
  t.AddSequence()
@@ -53,7 +53,7 @@ func main() {
  t.AddSequence()
  t.AddName("Action")
  t.AddSequence()
- t.AddAction(" p.AddState(buffer[begin:end]) ")
+ t.AddAction(" p.AddState(yytext) ")
  t.AddSequence()
  t.AddCommit()
  t.AddSequence()
@@ -64,11 +64,11 @@ func main() {
  t.AddSequence()
  t.AddExpression()
 
- /* Definition      <- Identifier                   { p.AddRule(buffer[begin:end]) }
+ /* Definition      <- Identifier                   { p.AddRule(yytext) }
                        LEFTARROW Expression         { p.AddExpression() } &(Identifier LEFTARROW / !.) commit */
  t.AddRule("Definition")
  t.AddName("Identifier")
- t.AddAction(" p.AddRule(buffer[begin:end]) ")
+ t.AddAction(" p.AddRule(yytext) ")
  t.AddSequence()
  t.AddName("LEFTARROW")
  t.AddSequence()
@@ -120,7 +120,7 @@ func main() {
  t.AddSequence()
  t.AddExpression()
 
- /* Prefix          <- AND Action                   { p.AddPredicate(buffer[begin:end]) }
+ /* Prefix          <- AND Action                   { p.AddPredicate(yytext) }
                      / AND Suffix                   { p.AddPeekFor() }
                      / NOT Suffix                   { p.AddPeekNot() }
                      /     Suffix */
@@ -128,7 +128,7 @@ func main() {
  t.AddName("AND")
  t.AddName("Action")
  t.AddSequence()
- t.AddAction(" p.AddPredicate(buffer[begin:end]) ")
+ t.AddAction(" p.AddPredicate(yytext) ")
  t.AddSequence()
  t.AddName("AND")
  t.AddName("Suffix")
@@ -168,12 +168,12 @@ func main() {
  t.AddExpression()
 
  /* Primary         <- 'commit' Spacing             { p.AddCommit() }
-                     / Identifier !LEFTARROW        { p.AddName(buffer[begin:end]) }
+                     / Identifier !LEFTARROW        { p.AddName(yytext) }
                      / OPEN Expression CLOSE
-                     / Literal                      { p.AddString(buffer[begin:end]) }
-                     / Class                        { p.AddClass(buffer[begin:end]) }
+                     / Literal                      { p.AddString(yytext) }
+                     / Class                        { p.AddClass(yytext) }
                      / DOT                          { p.AddDot() }
-                     / Action                       { p.AddAction(buffer[begin:end]) }
+                     / Action                       { p.AddAction(yytext) }
                      / BEGIN                        { p.AddBegin() }
                      / END                          { p.AddEnd() } */
  t.AddRule("Primary")
@@ -186,7 +186,7 @@ func main() {
  t.AddName("LEFTARROW")
  t.AddPeekNot()
  t.AddSequence()
- t.AddAction(" p.AddName(buffer[begin:end]) ")
+ t.AddAction(" p.AddName(yytext) ")
  t.AddSequence()
  t.AddAlternate()
  t.AddName("OPEN")
@@ -196,11 +196,11 @@ func main() {
  t.AddSequence()
  t.AddAlternate()
  t.AddName("Literal")
- t.AddAction(" p.AddString(buffer[begin:end]) ")
+ t.AddAction(" p.AddString(yytext) ")
  t.AddSequence()
  t.AddAlternate()
  t.AddName("Class")
- t.AddAction(" p.AddClass(buffer[begin:end]) ")
+ t.AddAction(" p.AddClass(yytext) ")
  t.AddSequence()
  t.AddAlternate()
  t.AddName("DOT")
@@ -208,7 +208,7 @@ func main() {
  t.AddSequence()
  t.AddAlternate()
  t.AddName("Action")
- t.AddAction(" p.AddAction(buffer[begin:end]) ")
+ t.AddAction(" p.AddAction(yytext) ")
  t.AddSequence()
  t.AddAlternate()
  t.AddName("BEGIN")
