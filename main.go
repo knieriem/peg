@@ -34,5 +34,5 @@ func main() {
  }
  p := &peg.Peg{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
  p.Init()
- if p.Parse() {p.Compile(file + ".go")} else {p.PrintError()}
+ if p.Parse(0) {p.Compile(file + ".go")} else {p.PrintError()}
 }

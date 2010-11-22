@@ -798,17 +798,37 @@ func (t *Tree) Compile(file string) {
 	if p := t.defines["package"]; p != "" {
 		print("package %v\n\nimport \"fmt\"\n", p)
 	}
+	print("\nconst (\n")
+	for el := t.Front(); el != nil; el = el.Next() {
+		node := el.Value.(Node)
+		if node.GetType() != TypeRule {
+			continue
+		}
+		r := node.(*rule)
+		b := []byte(r.String())
+		for i := 0; i < len(b); i++ {
+			if b[i] == '-' {
+				b[i] = '_'
+			}
+		}
+		if r.GetId() == 0 {
+			print("\trule%s\t= iota\n", b)
+		} else {
+			print("\trule%s\n", b)
+		}
+	}
 	pegname := t.defines["Peg"]
 	print(
-		`
+		`)
+
 type %v struct {%v
 	Buffer string
 	Min, Max int
 	rules [%d]func() bool
 }
 
-func (p *%v) Parse() bool {
-	if p.rules[0]() {
+func (p *%v) Parse(ruleId int) bool {
+	if p.rules[ruleId]() {
 		return true
 	}
 	return false
