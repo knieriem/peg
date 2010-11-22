@@ -1300,8 +1300,6 @@ func (p *%v) Init() {
 		print(" */")
 		if count, ok := t.rulesCount[rule.String()]; !ok {
 			fmt.Fprintf(os.Stderr, "rule '%v' defined but not used\n", rule)
-			nliPrint("nil,")
-			continue
 		} else if t.inline && count == 1 && ko != 0 {
 			nliPrint("nil,")
 			continue
