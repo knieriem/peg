@@ -293,6 +293,8 @@ type Tree struct {
 	rules      map[string]*rule
 	rulesCount map[string]uint
 	ruleId     int
+	headers    []string
+	trailers   []string
 	list.List
 	actions         list.List
 	classes         map[string]*characterClass
@@ -340,6 +342,14 @@ func (t *Tree) AddExpression() {
 	rule := t.pop().(Rule)
 	rule.SetExpression(expression)
 	t.PushBack(rule)
+}
+
+func (t *Tree) AddHeader(text string) {
+	t.headers = append(t.headers, text)
+}
+
+func (t *Tree) AddTrailer(text string) {
+	t.trailers = append(t.trailers, text)
 }
 
 func (t *Tree) AddName(text string) { t.push(&token{Type: TypeName, string: text}) }
@@ -780,6 +790,10 @@ func (t *Tree) Compile(file string) {
 	}
 	printSave := func(n uint) { nliPrint("position%d := position", n) }
 	printRestore := func(n uint) { nliPrint("position = position%d", n) }
+
+	for _, s := range t.headers {
+		print("%s", s)
+	}
 
 	pegname := t.defines["Peg"]
 	print(
@@ -1289,4 +1303,8 @@ func (p *%v) Init() {
 	}
 	print("\n\t}")
 	print("\n}\n")
+
+	for _, s := range t.trailers {
+		print("%s", s)
+	}
 }
