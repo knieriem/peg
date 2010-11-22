@@ -795,12 +795,12 @@ func (t *Tree) Compile(file string) {
 		print("%s", s)
 	}
 
+	if p := t.defines["package"]; p != "" {
+		print("package %v\n\nimport \"fmt\"\n", p)
+	}
 	pegname := t.defines["Peg"]
 	print(
-		`package %v
-
-import "fmt"
-
+		`
 type %v struct {%v
 	Buffer string
 	Min, Max int
@@ -842,7 +842,7 @@ func (p *%v) PrintError() {
 }
 func (p *%v) Init() {
 	var position int`,
-		t.defines["package"], pegname, t.defines["userstate"], len(t.rules), pegname, pegname, pegname)
+		pegname, t.defines["userstate"], len(t.rules), pegname, pegname, pegname)
 
 	hasActions := t.actions.Len() != 0
 	if hasActions {
