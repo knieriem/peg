@@ -1,0 +1,66 @@
+%{
+package main
+
+import (
+	"os"
+	"bufio"
+	"fmt"
+	"strconv"
+)
+
+var vars = make([]int, 26)
+
+%}
+
+%YYSTYPE int
+
+Stmt	= - e:Expr EOL		{ fmt.Printf("%d\n", e) } commit
+	| ( !EOL . )* EOL		{ fmt.Printf("error\n") } commit
+
+Expr	= i:ID ASSIGN s:Sum		{ $$= s; vars[i]= s }
+	| s:Sum				{ $$= s }
+
+Sum	= l:Product
+		( PLUS  r:Product	{ l += r }
+		| MINUS r:Product	{ l -= r }
+		)*			{ $$= l }
+
+Product	= l:Value
+		( TIMES  r:Value	{ l *= r }
+		| DIVIDE r:Value	{ l /= r }
+		)*			{ $$= l }
+
+Value	= i:NUMBER			{ $$, _ = strconv.Atoi(yytext) }
+	| i:ID !ASSIGN			{ $$= vars[i] }
+	| OPEN i:Expr CLOSE		{ $$= i }
+
+NUMBER	= < [0-9]+ >	-		{ $$, _ = strconv.Atoi(yytext) }
+ID	= < [a-z]  >	-		{ $$= int(yytext[0]) - 'a' }
+ASSIGN	= '='		-
+PLUS	= '+'		-
+MINUS	= '-'		-
+TIMES	= '*'		-
+DIVIDE	= '/'		-
+OPEN	= '('		-
+CLOSE	= ')'		-
+
+-	= [ \t]*
+EOL	= '\n' | '\r\n' | '\r' | ';'
+
+%%
+
+func main() {
+	m := new(yyParser)
+
+	b := bufio.NewReader(os.Stdin)
+	for {
+		if s, e := b.ReadString('\n'); e!=nil {
+			break
+		} else {
+			m.Buffer = s
+			m.Init()
+			for m.Parse(ruleStmt) {
+			}
+		}
+	}
+}

@@ -1,0 +1,107 @@
+# PE Grammar for LE Grammars
+# 
+# Adapted from [1] and [2] by M. Teichgräber <mt@ib.wmipf.de>.
+#
+# Best viewed using 140 columns monospaced with tabs every 8.
+# 
+# [1] PE grammar adapted from [2] by Ian Piumarta <first-name at last-name point com>.
+#
+# [2] Bryan Ford.  "Parsing Expression Grammars: A Recognition-Based Syntactic
+#     Foundation."  Symposium on Principles of Programming Languages,
+#     January 14--16, 2004, Venice, Italy.
+
+package leg
+
+# parser declaration
+
+type Leg Peg {
+ *Tree
+}
+
+# Hierarchical syntax
+
+Grammar	<- Spacing
+		Declaration?
+		(YYstype / YYuserstate)*
+		(Declaration / Definition)+
+		Trailer?
+		EndOfFile
+
+Declaration	<- Spacing '%{' < (!'%}' . )* > RPERCENT { p.AddHeader(yytext) } commit
+
+YYstype		<- '%YYSTYPE' Spacing GoType	{ p.Define("yystype", yytext) }
+		Spacing
+
+YYuserstate	<- '%userstate' Spacing GoType { p.Define("userstate", yytext) }
+		Spacing
+
+Trailer		<- '%%' < .* >			{ p.AddTrailer(yytext) } commit
+
+Definition	<- Identifier 			{ p.AddRule(yytext) }
+		EQUAL Expression		{ p.AddExpression() }
+		SEMICOLON?
+		 commit
+
+Expression	<- Sequence (BAR Sequence	{ p.AddAlternate() }
+			    )* (BAR           { p.AddEmptyAlternate() }
+                               )?
+                 /
+Sequence	<- Prefix (Prefix		{ p.AddSequence() }
+			  )*
+Prefix		<- AND Action			{ p.AddPredicate(yytext) }
+		 / AND Suffix			{ p.AddPeekFor() }
+		 / NOT Suffix			{ p.AddPeekNot() }
+		 /     Suffix
+Suffix          <- Primary (QUESTION            { p.AddQuery() }
+                           / STAR               { p.AddStar() }
+                           / PLUS               { p.AddPlus() }
+                           )?
+Primary	        <- 'commit' Spacing             { p.AddCommit() }
+		 / Identifier			{ p.AddVariable(yytext) }
+			COLON Identifier !EQUAL	{ p.AddName(yytext) }
+                 / Identifier !EQUAL		{ p.AddName(yytext) }
+                 / OPEN Expression CLOSE
+                 / Literal                      { p.AddString(yytext) }
+                 / Class                        { p.AddClass(yytext) }
+                 / DOT                          { p.AddDot() }
+                 / Action                       { p.AddAction(yytext) }
+                 / BEGIN                        { p.AddBegin() }
+                 / END                          { p.AddEnd() }
+
+# Lexical syntax
+
+Identifier	<- < [-a-zA-Z_][-a-zA-Z_0-9]* > Spacing
+GoType		<- < '*'? [a-zA-Z_][a-zA-Z_0-9]* > Spacing
+Literal		<- ['] < (!['] Char )* > ['] Spacing
+		 / ["] < (!["] Char )* > ["] Spacing
+Class		<- '[' < (!']' Range)* > ']' Spacing
+Range		<- Char '-' Char / Char
+Char		<- '\\' [abefnrtv'"\[\]\\]
+		 / '\\' [0-3][0-7][0-7]
+		 / '\\' [0-7][0-7]?
+		 / '\\' '-'
+		 / !'\\' .
+EQUAL		<- '=' Spacing
+COLON		<- ':' Spacing
+SEMICOLON	<- ';' Spacing
+BAR		<- '|' Spacing
+AND		<- '&' Spacing
+NOT		<- '!' Spacing
+QUESTION	<- '?' Spacing
+STAR		<- '*' Spacing
+PLUS		<- '+' Spacing
+OPEN		<- '(' Spacing
+CLOSE		<- ')' Spacing
+DOT		<- '.' Spacing
+Spacing		<- (Space / Comment)*
+Comment		<- '#' (!EndOfLine .)* EndOfLine
+Space		<- ' ' / '\t' / EndOfLine
+EndOfLine	<- '\r\n' / '\n' / '\r'
+EndOfFile	<- !.
+
+Action		<- '{' < Braces* > '}' Spacing
+Braces		<- '{' (!'}' .)* '}'
+		/ !'}' .
+BEGIN		<- '<' Spacing
+END		<- '>' Spacing
+RPERCENT	<- '%}' Spacing
