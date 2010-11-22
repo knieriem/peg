@@ -1070,7 +1070,7 @@ func (p *%v) Init() {
 		case TypeClass:
 			nliPrintGotoIf(ko, "!matchClass(%d)", classes[node.String()])
 		case TypePredicate:
-			nliPrintGotoIf(ko, "if !(%v)", node)
+			nliPrintGotoIf(ko, "!(%v)", node)
 		case TypeAction:
 			nliPrint("do(%d)", node.(Action).GetId())
 		case TypeCommit:
