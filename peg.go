@@ -62,6 +62,7 @@ type rule struct {
 	name       string
 	id         int
 	expression Node
+	variables  map[string]*variable
 }
 
 func (r *rule) GetType() Type {
@@ -84,7 +85,27 @@ func (r *rule) String() string {
 	return r.name
 }
 
-/* Used to represent TypeName, TypeDot, TypeCharacter, TypeString, TypeClass, and TypePredicate. */
+type variable struct {
+	name   string
+	offset int
+}
+
+/* Used to represent TypeName */
+type Name interface {
+	Node
+}
+
+type name struct {
+	Type
+	string
+	varp *variable
+}
+
+func (t *name) String() string {
+	return t.string
+}
+
+/* Used to represent TypeDot, TypeCharacter, TypeString, TypeClass, and TypePredicate. */
 type Token interface {
 	Node
 	GetClass() *characterClass
@@ -114,7 +135,7 @@ type Action interface {
 type action struct {
 	text string
 	id   int
-	rule string
+	rule *rule
 }
 
 func (a *action) GetType() Type {
@@ -130,7 +151,7 @@ func (a *action) GetId() int {
 }
 
 func (a *action) GetRule() string {
-	return a.rule
+	return a.rule.String()
 }
 
 /* Used to represent a TypeAlternate or TypeSequence. */
@@ -293,6 +314,7 @@ type Tree struct {
 	rules      map[string]*rule
 	rulesCount map[string]uint
 	ruleId     int
+	varp       *variable
 	headers    []string
 	trailers   []string
 	list.List
@@ -312,6 +334,7 @@ func New(inline, _switch bool) *Tree {
 			"package": "",
 			"Peg": "yyParser",
 			"userstate": "",
+			"yystype": "yyStype",
 		},
 		inline:     inline,
 		_switch:    _switch}
@@ -328,8 +351,8 @@ func (t *Tree) pop() Node {
 	return n
 }
 
-func (t *Tree) currentRule() Rule {
-	return t.stack[1].(Rule)
+func (t *Tree) currentRule() *rule {
+	return t.stack[1].(*rule)
 }
 
 func (t *Tree) AddRule(name string) {
@@ -352,7 +375,24 @@ func (t *Tree) AddTrailer(text string) {
 	t.trailers = append(t.trailers, text)
 }
 
-func (t *Tree) AddName(text string) { t.push(&token{Type: TypeName, string: text}) }
+func (t *Tree) AddVariable(text string) {
+	var v *variable
+
+	r := t.currentRule()
+	if r.variables == nil {
+		r.variables = make(map[string]*variable)
+	}
+	if v = r.variables[text]; v == nil {
+		v = &variable{name: text}
+	}
+	r.variables[text] = v
+	t.varp = v
+}
+
+func (t *Tree) AddName(text string) {
+	t.push(&name{Type: TypeName, string: text, varp: t.varp})
+	t.varp = nil
+}
 
 var dot *token = &token{Type: TypeDot, string: "."}
 
@@ -430,7 +470,13 @@ var end *token = &token{Type: TypeEnd, string: ">"}
 
 func (t *Tree) AddEnd() { t.push(end) }
 func (t *Tree) AddAction(text string) {
-	a := &action{text: text, id: t.actions.Len(), rule: t.currentRule().String()}
+	b := []byte(text)
+	for i := 0; i < len(b)-1; i++ {
+		if b[i] == '$' && b[i+1] == '$' {
+			b[i], b[i+1] = 'y', 'y'
+		}
+	}
+	a := &action{text: string(b), id: t.actions.Len(), rule: t.currentRule()}
 	t.actions.PushBack(a)
 	t.push(a)
 }
@@ -487,12 +533,15 @@ func join(tasks []func()) {
 
 func (t *Tree) Compile(file string) {
 	counts := [TypeLast]uint{}
+	nvar := 0
+
 	for element := t.Front(); element != nil; element = element.Next() {
 		node := element.Value.(Node)
 		switch node.GetType() {
 		case TypeRule:
 			rule := node.(*rule)
 			t.rules[rule.String()] = rule
+			nvar += len(rule.variables)
 		}
 	}
 
@@ -864,6 +913,17 @@ func (p *%v) Init() {
 	var position int`,
 		pegname, t.defines["userstate"], len(t.rules), pegname, pegname, pegname)
 
+	if nvar > 0 {
+		yystype := t.defines["yystype"]
+		print(
+			`
+`+`	var yyp int
+`+`	var yy %s
+`+`	var yyval = make([]%s, 200)
+`,
+			yystype, yystype)
+	}
+
 	hasActions := t.actions.Len() != 0
 	if hasActions {
 		bits := 0
@@ -880,26 +940,76 @@ func (p *%v) Init() {
 		case bits < 64:
 			bits = 64
 		}
-		print("\n\tactions := [...]func(string){\n")
+		print("\n\tactions := [...]func(string, int){")
+		nact := 0
 		for i := t.actions.Front(); i != nil; i = i.Next() {
 			a := i.Value.(Action)
-			print("\t\t/* %v %v */\n", a.GetId(), a.GetRule())
-			print("\t\tfunc(yytext string) {\n")
-			print("\t\t\t%v\n", a)
-			print("\t\t},\n")
+			nliPrint("/* %v %v */", a.GetId(), a.GetRule())
+			nliPrint("func(yytext string, _ int) {")
+			indent++
+
+			vmap := a.(*action).rule.variables
+			off := 0
+			for _, v := range vmap {
+				off--
+				v.offset = off
+				nliPrint("%s := yyval[yyp%d]", v.name, v.offset)
+			}
+			nliPrint("%v", a)
+			for _, v := range vmap {
+				nliPrint("yyval[yyp%d] = %s", v.offset, v.name)
+			}
+			indent--
+			nliPrint("},")
+			nact++
 		}
+		if nvar > 0 {
+			print(`
+`+`		/* %d yyPush */
+`+`		func(_ string, count int) {
+`+`			yyp += count
+`+`			if yyp >= len(yyval) {
+`+`				s := make([]%s, cap(yyval)+200)
+`+`				copy(s, yyval)
+`+`				yyval = s
+`+`			}
+`+`		},
+`+`		/* %d yyPop */
+`+`		func(_ string, count int) {
+`+`			yyp -= count
+`+`		},
+`+`		/* %d yySet */
+`+`		func(_ string, count int) {
+`+`			yyval[yyp+count] = yy
+`+`		},
+`+`	}
+`+`	const (
+`+`		yyPush = %d+iota
+`+`		yyPop
+`+`		yySet
+`+`	)
+`,
+				nact, t.defines["yystype"], nact+1, nact+2, nact)
+		} else {
+			print("\t}\n")
+		}
+
 		print(
-			`	}
+			`
 `+`	var thunkPosition, begin, end int
 `+`	thunks := make([]struct {action uint%d; begin, end int}, 32)
-`+`	do := func(action uint%d) {
+`+`	do := func(action uint%d, arg ...int) {
 `+`		if thunkPosition == len(thunks) {
 `+`			newThunks := make([]struct {action uint%d; begin, end int}, 2 * len(thunks))
 `+`			copy(newThunks, thunks)
 `+`			thunks = newThunks
 `+`		}
 `+`		thunks[thunkPosition].action = action
-`+`		thunks[thunkPosition].begin = begin
+`+`		if len(arg)>0 {
+`+`			thunks[thunkPosition].begin = arg[0] // use begin to store a count value
+`+`		} else {
+`+`			thunks[thunkPosition].begin = begin
+`+`		}		
 `+`		thunks[thunkPosition].end = end
 `+`		thunkPosition++
 `+`	}`, bits, bits, bits)
@@ -915,7 +1025,8 @@ func (p *%v) Init() {
 `+`				if b>=0 && e<=len(p.Buffer) && b<=e {
 `+`					s = p.Buffer[b:e]
 `+`				}
-`+`				actions[thunks[i].action](s)
+`+`				magic := b
+`+`				actions[thunks[i].action](s, magic)
 `+`			}
 `+`			p.Min = position
 `+`			thunkPosition = 0
@@ -1090,6 +1201,7 @@ func (p *%v) Init() {
 		case TypeDot:
 			nliPrintGotoIf(ko, "!matchDot()")
 		case TypeName:
+			varp := node.(*name).varp
 			name := node.String()
 			rule := t.rules[name]
 			if t.inline && t.rulesCount[name] == 1 {
@@ -1097,6 +1209,9 @@ func (p *%v) Init() {
 				return
 			}
 			nliPrintGotoIf(ko, "!p.rules[%d]()", rule.GetId())
+			if varp != nil {
+				nliPrint("do(yySet, %d)", varp.offset)
+			}
 		case TypeCharacter:
 			nliPrintGotoIf(ko, "!matchChar('%v')", node)
 		case TypeString:
@@ -1309,7 +1424,14 @@ func (p *%v) Init() {
 		if !expression.GetType().IsSafe() {
 			printSave(0)
 		}
+		nvar := len(rule.variables)
+		if nvar > 0 {
+			nliPrint("do(yyPush, %d)", nvar)
+		}
 		compile(expression, ko)
+		if nvar > 0 {
+			nliPrint("do(yyPop, %d)", nvar)
+		}
 		nliPrint("return true")
 		if !expression.GetType().IsSafe() {
 			printLabel(ko)
