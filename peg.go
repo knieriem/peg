@@ -310,7 +310,7 @@ func New(inline, _switch bool) *Tree {
 		classes:    make(map[string]*characterClass),
 		defines:	map[string]string{
 			"package": "",
-			"Peg": "",
+			"Peg": "yyParser",
 			"userstate": "",
 		},
 		inline:     inline,
