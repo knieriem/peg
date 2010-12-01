@@ -874,6 +874,7 @@ type %v struct {%v
 	Buffer string
 	Min, Max int
 	rules [%d]func() bool
+	ResetBuffer	func(string) string
 }
 
 func (p *%v) Parse(ruleId int) bool {
@@ -1013,6 +1014,21 @@ func (p *%v) Init() {
 `+`		thunks[thunkPosition].end = end
 `+`		thunkPosition++
 `+`	}`, bits, bits, bits)
+
+		print(
+			`
+`+`	p.ResetBuffer = func(s string) (old string) {
+`+`		if p.Max < len(p.Buffer) {
+`+`			old = p.Buffer[p.Max:]
+`+`		}
+`+`		p.Buffer = s
+`+`		thunkPosition = 0
+`+`		position = 0
+`+`		p.Min = 0
+`+`		p.Max = 0
+`+`		return
+`+`	}
+`)
 		if counts[TypeCommit] > 0 {
 			print(
 				`

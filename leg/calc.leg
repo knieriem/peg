@@ -50,16 +50,16 @@ EOL	= '\n' | '\r\n' | '\r' | ';'
 %%
 
 func main() {
-	m := new(yyParser)
+	calc := new(yyParser)
+	calc.Init()
 
 	b := bufio.NewReader(os.Stdin)
 	for {
 		if s, e := b.ReadString('\n'); e!=nil {
 			break
 		} else {
-			m.Buffer = s
-			m.Init()
-			for m.Parse(ruleStmt) {
+			calc.ResetBuffer(s)
+			for calc.Parse(ruleStmt) {
 			}
 		}
 	}
