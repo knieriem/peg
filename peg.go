@@ -999,21 +999,24 @@ func (p *%v) Init() {
 			`
 `+`	var thunkPosition, begin, end int
 `+`	thunks := make([]struct {action uint%d; begin, end int}, 32)
-`+`	do := func(action uint%d, arg ...int) {
+`+`	doarg := func(action uint%d, arg int) {
 `+`		if thunkPosition == len(thunks) {
 `+`			newThunks := make([]struct {action uint%d; begin, end int}, 2 * len(thunks))
 `+`			copy(newThunks, thunks)
 `+`			thunks = newThunks
 `+`		}
 `+`		thunks[thunkPosition].action = action
-`+`		if len(arg)>0 {
-`+`			thunks[thunkPosition].begin = arg[0] // use begin to store a count value
+`+`		if arg != 0 {
+`+`			thunks[thunkPosition].begin = arg // use begin to store an argument
 `+`		} else {
 `+`			thunks[thunkPosition].begin = begin
-`+`		}		
+`+`		}
 `+`		thunks[thunkPosition].end = end
 `+`		thunkPosition++
-`+`	}`, bits, bits, bits)
+`+`	}
+`+`	do := func(action uint%d) {
+`+`		doarg(action, 0)
+`+`	}`, bits, bits, bits, bits)
 
 		print(
 			`
@@ -1213,11 +1216,11 @@ func (p *%v) Init() {
 	compileExpression := func(rule *rule, ko uint) {
 		nvar := len(rule.variables)
 		if nvar > 0 {
-			nliPrint("do(yyPush, %d)", nvar)
+			nliPrint("doarg(yyPush, %d)", nvar)
 		}
 		compile(rule.GetExpression(), ko)
 		if nvar > 0 {
-			nliPrint("do(yyPop, %d)", nvar)
+			nliPrint("doarg(yyPop, %d)", nvar)
 		}
 	}
 	compile = func(node Node, ko uint) {
@@ -1236,7 +1239,7 @@ func (p *%v) Init() {
 				nliPrintGotoIf(ko, "!p.rules[%d]()", rule.GetId())
 			}
 			if varp != nil {
-				nliPrint("do(yySet, %d)", varp.offset)
+				nliPrint("doarg(yySet, %d)", varp.offset)
 			}
 		case TypeCharacter:
 			nliPrintGotoIf(ko, "!matchChar('%v')", node)
