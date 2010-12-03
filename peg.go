@@ -1210,6 +1210,16 @@ func (p *%v) Init() {
 			fmt.Fprintf(os.Stderr, "illegal node type: %v\n", node.GetType())
 		}
 	}
+	compileExpression := func(rule *rule, ko uint) {
+		nvar := len(rule.variables)
+		if nvar > 0 {
+			nliPrint("do(yyPush, %d)", nvar)
+		}
+		compile(rule.GetExpression(), ko)
+		if nvar > 0 {
+			nliPrint("do(yyPop, %d)", nvar)
+		}
+	}
 	compile = func(node Node, ko uint) {
 		switch node.GetType() {
 		case TypeRule:
@@ -1221,10 +1231,10 @@ func (p *%v) Init() {
 			name := node.String()
 			rule := t.rules[name]
 			if t.inline && t.rulesCount[name] == 1 {
-				compile(rule.GetExpression(), ko)
-				return
+				compileExpression(rule, ko)
+			} else {
+				nliPrintGotoIf(ko, "!p.rules[%d]()", rule.GetId())
 			}
-			nliPrintGotoIf(ko, "!p.rules[%d]()", rule.GetId())
 			if varp != nil {
 				nliPrint("do(yySet, %d)", varp.offset)
 			}
@@ -1440,14 +1450,7 @@ func (p *%v) Init() {
 		if !expression.GetType().IsSafe() {
 			printSave(0)
 		}
-		nvar := len(rule.variables)
-		if nvar > 0 {
-			nliPrint("do(yyPush, %d)", nvar)
-		}
-		compile(expression, ko)
-		if nvar > 0 {
-			nliPrint("do(yyPop, %d)", nvar)
-		}
+		compileExpression(rule, ko)
 		nliPrint("return true")
 		if !expression.GetType().IsSafe() {
 			printLabel(ko)
