@@ -831,8 +831,13 @@ func (t *Tree) Compile(file string) {
 		}
 		print(s+format, a...)
 	}
-	nliPrintGotoIf := func(label uint, format string, a ...interface{}) {
-		nliPrint("if "+format, a...)
+	nliPrintGotoIf := func(jumpIfTrue bool, label uint, format string, a ...interface{}) {
+		if jumpIfTrue {
+			format = "if " + format
+		} else {
+			format = "if !" + format
+		}
+		nliPrint(format, a...)
 		print(" {")
 		nliPrint("\tgoto l%d", label)
 		nliPrint("}")
@@ -1228,7 +1233,7 @@ func (p *%v) Init() {
 		case TypeRule:
 			fmt.Fprintf(os.Stderr, "internal error #1 (%v)\n", node)
 		case TypeDot:
-			nliPrintGotoIf(ko, "!matchDot()")
+			nliPrintGotoIf(false, ko, "matchDot()")
 		case TypeName:
 			varp := node.(*name).varp
 			name := node.String()
@@ -1236,23 +1241,23 @@ func (p *%v) Init() {
 			if t.inline && t.rulesCount[name] == 1 {
 				compileExpression(rule, ko)
 			} else {
-				nliPrintGotoIf(ko, "!p.rules[rule%s]()", rule.String())
+				nliPrintGotoIf(false, ko, "p.rules[rule%s]()", rule.String())
 			}
 			if varp != nil {
 				nliPrint("doarg(yySet, %d)", varp.offset)
 			}
 		case TypeCharacter:
-			nliPrintGotoIf(ko, "!matchChar('%v')", node)
+			nliPrintGotoIf(false, ko, "matchChar('%v')", node)
 		case TypeString:
-			nliPrintGotoIf(ko, "!matchString(\"%v\")", node)
+			nliPrintGotoIf(false, ko, "matchString(\"%v\")", node)
 		case TypeClass:
-			nliPrintGotoIf(ko, "!matchClass(%d)", classes[node.String()])
+			nliPrintGotoIf(false, ko, "matchClass(%d)", classes[node.String()])
 		case TypePredicate:
-			nliPrintGotoIf(ko, "!(%v)", node)
+			nliPrintGotoIf(false, ko, "(%v)", node)
 		case TypeAction:
 			nliPrint("do(%d)", node.(Action).GetId())
 		case TypeCommit:
-			nliPrintGotoIf(ko, "!(commit(thunkPosition0))")
+			nliPrintGotoIf(false, ko, "(commit(thunkPosition0))")
 		case TypeBegin:
 			if hasActions {
 				nliPrint("begin = position")
@@ -1301,7 +1306,7 @@ func (p *%v) Init() {
 				label++
 				printSave(ok)
 			}
-			nliPrintGotoIf(done, "position == len(p.Buffer)")
+			nliPrintGotoIf(true, done, "position == len(p.Buffer)")
 			nliPrint("switch p.Buffer[position] {")
 			element := list.Front()
 			for ; element.Next() != nil; element = element.Next() {
