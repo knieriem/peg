@@ -1074,6 +1074,9 @@ func (p *%v) Init() {
 `+`			p.Max = position
 `+`		}
 `+`		return false
+`+`	}
+`+`	peekDot := func() bool {
+`+`		return position < len(p.Buffer)
 `+`	}`)
 	}
 	if counts[TypeCharacter] > 0 {
@@ -1087,6 +1090,9 @@ func (p *%v) Init() {
 `+`			p.Max = position
 `+`		}
 `+`		return false
+`+`	}
+`+`	peekChar := func(c byte) bool {
+`+`		return position < len(p.Buffer) && p.Buffer[position] == c
 `+`	}`)
 	}
 	if counts[TypeString] > 0 {
@@ -1228,6 +1234,19 @@ func (p *%v) Init() {
 			nliPrint("doarg(yyPop, %d)", nvar)
 		}
 	}
+	canCompilePeek := func(node Node, jumpIfTrue bool, label uint) bool {
+		switch node.GetType() {
+		case TypeDot:
+			nliPrintGotoIf(jumpIfTrue, label, "peekDot()")
+		case TypeCharacter:
+			nliPrintGotoIf(jumpIfTrue, label, "peekChar('%v')", node)
+		case TypePredicate:
+			nliPrintGotoIf(jumpIfTrue, label, "(%v)", node)
+		default:
+			return false
+		}
+		return true
+	}
 	compile = func(node Node, ko uint) {
 		switch node.GetType() {
 		case TypeRule:
@@ -1367,19 +1386,27 @@ func (p *%v) Init() {
 				compile(element.Value.(Node), ko)
 			}
 		case TypePeekFor:
+			sub := node.(Fix).GetNode()
+			if canCompilePeek(sub, false, ko) {
+				return
+			}
 			ok := label
 			label++
 			printBegin()
 			printSave(ok)
-			compile(node.(Fix).GetNode(), ko)
+			compile(sub, ko)
 			printRestore(ok)
 			printEnd()
 		case TypePeekNot:
+			sub := node.(Fix).GetNode()
+			if canCompilePeek(sub, true, ko) {
+				return
+			}
 			ok := label
 			label++
 			printBegin()
 			printSave(ok)
-			compile(node.(Fix).GetNode(), ok)
+			compile(sub, ok)
 			printJump(ko)
 			printLabel(ok)
 			printRestore(ok)
