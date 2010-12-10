@@ -1236,7 +1236,7 @@ func (p *%v) Init() {
 			if t.inline && t.rulesCount[name] == 1 {
 				compileExpression(rule, ko)
 			} else {
-				nliPrintGotoIf(ko, "!p.rules[%d]()", rule.GetId())
+				nliPrintGotoIf(ko, "!p.rules[rule%s]()", rule.String())
 			}
 			if varp != nil {
 				nliPrint("doarg(yySet, %d)", varp.offset)
