@@ -34,6 +34,7 @@ const (
 	TypeQuery
 	TypeStar
 	TypePlus
+	TypeNil
 	TypeLast
 )
 
@@ -74,6 +75,9 @@ func (r *rule) GetId() int {
 }
 
 func (r *rule) GetExpression() Node {
+	if r.expression == nil {
+		return nilNode
+	}
 	return r.expression
 }
 
@@ -105,7 +109,7 @@ func (t *name) String() string {
 	return t.string
 }
 
-/* Used to represent TypeDot, TypeCharacter, TypeString, TypeClass, and TypePredicate. */
+/* Used to represent TypeDot, TypeCharacter, TypeString, TypeClass, TypePredicate, and TypeNil. */
 type Token interface {
 	Node
 	GetClass() *characterClass
@@ -124,6 +128,8 @@ func (t *token) GetClass() *characterClass {
 func (t *token) String() string {
 	return t.string
 }
+
+var nilNode = &token{Type: TypeNil, string: "<nil>"}
 
 /* Used to represent TypeAction. */
 type Action interface {
@@ -390,6 +396,7 @@ func (t *Tree) AddVariable(text string) {
 }
 
 func (t *Tree) AddName(text string) {
+	t.rules[text] = &rule{}
 	t.push(&name{Type: TypeName, string: text, varp: t.varp})
 	t.varp = nil
 }
@@ -542,6 +549,14 @@ func (t *Tree) Compile(file string) {
 			rule := node.(*rule)
 			t.rules[rule.String()] = rule
 			nvar += len(rule.variables)
+		}
+	}
+	for name, r := range t.rules {
+		if r.name == "" {
+			r := &rule{name: name, id: t.ruleId}
+			t.ruleId++
+			t.rules[name] = r
+			t.PushBack(r)
 		}
 	}
 
@@ -1152,7 +1167,7 @@ func (p *%v) Init() {
 		case TypeRule:
 			print("%v <- ", node)
 			expression := node.(Rule).GetExpression()
-			if expression != nil {
+			if expression != nilNode {
 				printRule(expression)
 			}
 		case TypeDot:
@@ -1451,6 +1466,7 @@ func (p *%v) Init() {
 			printLabel(out)
 			printRestore(out)
 			printEnd()
+		case TypeNil:
 		default:
 			fmt.Fprintf(os.Stderr, "illegal node type: %v\n", node.GetType())
 		}
@@ -1464,7 +1480,7 @@ func (p *%v) Init() {
 		}
 		rule := node.(*rule)
 		expression := rule.GetExpression()
-		if expression == nil {
+		if expression == nilNode {
 			fmt.Fprintf(os.Stderr, "rule '%v' used but not defined\n", rule)
 			nliPrint("nil,")
 			continue
