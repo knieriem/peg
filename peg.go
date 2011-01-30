@@ -838,27 +838,7 @@ func (t *Tree) Compile(file string) {
 	print := func(format string, a ...interface{}) {
 		fmt.Fprintf(out, format, a...)
 	}
-	indent := 2
-	nliPrint := func(format string, a ...interface{}) {
-		s := "\n"
-		for i:=0; i<indent; i++ {
-			s += "\t"
-		}
-		print(s+format, a...)
-	}
-	nliPrintGotoIf := func(jumpIfTrue bool, label uint, format string, a ...interface{}) {
-		if jumpIfTrue {
-			format = "if " + format
-		} else {
-			format = "if !" + format
-		}
-		nliPrint(format, a...)
-		print(" {")
-		nliPrint("\tgoto l%d", label)
-		nliPrint("}")
-	}
-	printSave := func(n uint) { nliPrint("position%d := position", n) }
-	printRestore := func(n uint) { nliPrint("position = position%d", n) }
+	w := newWriter(out)
 
 	for _, s := range t.headers {
 		print("%s", s)
@@ -965,23 +945,23 @@ func (p *%v) Init() {
 		nact := 0
 		for i := t.actions.Front(); i != nil; i = i.Next() {
 			a := i.Value.(Action)
-			nliPrint("/* %v %v */", a.GetId(), a.GetRule())
-			nliPrint("func(yytext string, _ int) {")
-			indent++
+			w.lnPrint("/* %v %v */", a.GetId(), a.GetRule())
+			w.lnPrint("func(yytext string, _ int) {")
+			w.indent++
 
 			vmap := a.(*action).rule.variables
 			off := 0
 			for _, v := range vmap {
 				off--
 				v.offset = off
-				nliPrint("%s := yyval[yyp%d]", v.name, v.offset)
+				w.lnPrint("%s := yyval[yyp%d]", v.name, v.offset)
 			}
-			nliPrint("%v", a)
+			w.lnPrint("%v", a)
 			for _, v := range vmap {
-				nliPrint("yyval[yyp%d] = %s", v.offset, v.name)
+				w.lnPrint("yyval[yyp%d] = %s", v.offset, v.name)
 			}
-			indent--
-			nliPrint("},")
+			w.indent--
+			w.lnPrint("},")
 			nact++
 		}
 		if nvar > 0 {
@@ -1074,8 +1054,7 @@ func (p *%v) Init() {
 `+`		return false
 `+`	}`)
 		}
-		printSave = func(n uint) { nliPrint("position%d, thunkPosition%d := position, thunkPosition", n, n) }
-		printRestore = func(n uint) { nliPrint("position, thunkPosition = position%d, thunkPosition%d", n, n) }
+		w.hasCommit = true
 	}
 
 	if counts[TypeDot] > 0 {
@@ -1158,10 +1137,6 @@ func (p *%v) Init() {
 	var printRule func(node Node)
 	var compile func(expression Node, ko uint)
 	var label uint
-	printBegin := func() { nliPrint("{"); indent++ }
-	printEnd := func() { indent--; nliPrint("}") }
-	printLabel := func(n uint) { indent--; nliPrint("l%d:", n); indent++ }
-	printJump := func(n uint) { nliPrint("goto l%d", n) }
 	printRule = func(node Node) {
 		switch node.GetType() {
 		case TypeRule:
@@ -1242,21 +1217,21 @@ func (p *%v) Init() {
 	compileExpression := func(rule *rule, ko uint) {
 		nvar := len(rule.variables)
 		if nvar > 0 {
-			nliPrint("doarg(yyPush, %d)", nvar)
+			w.lnPrint("doarg(yyPush, %d)", nvar)
 		}
 		compile(rule.GetExpression(), ko)
 		if nvar > 0 {
-			nliPrint("doarg(yyPop, %d)", nvar)
+			w.lnPrint("doarg(yyPop, %d)", nvar)
 		}
 	}
 	canCompilePeek := func(node Node, jumpIfTrue bool, label uint) bool {
 		switch node.GetType() {
 		case TypeDot:
-			nliPrintGotoIf(jumpIfTrue, label, "peekDot()")
+			w.cJump(jumpIfTrue, label, "peekDot()")
 		case TypeCharacter:
-			nliPrintGotoIf(jumpIfTrue, label, "peekChar('%v')", node)
+			w.cJump(jumpIfTrue, label, "peekChar('%v')", node)
 		case TypePredicate:
-			nliPrintGotoIf(jumpIfTrue, label, "(%v)", node)
+			w.cJump(jumpIfTrue, label, "(%v)", node)
 		default:
 			return false
 		}
@@ -1267,7 +1242,7 @@ func (p *%v) Init() {
 		case TypeRule:
 			fmt.Fprintf(os.Stderr, "internal error #1 (%v)\n", node)
 		case TypeDot:
-			nliPrintGotoIf(false, ko, "matchDot()")
+			w.cJump(false, ko, "matchDot()")
 		case TypeName:
 			varp := node.(*name).varp
 			name := node.String()
@@ -1275,79 +1250,79 @@ func (p *%v) Init() {
 			if t.inline && t.rulesCount[name] == 1 {
 				compileExpression(rule, ko)
 			} else {
-				nliPrintGotoIf(false, ko, "p.rules[rule%s]()", rule.String())
+				w.cJump(false, ko, "p.rules[rule%s]()", rule.String())
 			}
 			if varp != nil {
-				nliPrint("doarg(yySet, %d)", varp.offset)
+				w.lnPrint("doarg(yySet, %d)", varp.offset)
 			}
 		case TypeCharacter:
-			nliPrintGotoIf(false, ko, "matchChar('%v')", node)
+			w.cJump(false, ko, "matchChar('%v')", node)
 		case TypeString:
-			nliPrintGotoIf(false, ko, "matchString(\"%v\")", node)
+			w.cJump(false, ko, "matchString(\"%v\")", node)
 		case TypeClass:
-			nliPrintGotoIf(false, ko, "matchClass(%d)", classes[node.String()])
+			w.cJump(false, ko, "matchClass(%d)", classes[node.String()])
 		case TypePredicate:
-			nliPrintGotoIf(false, ko, "(%v)", node)
+			w.cJump(false, ko, "(%v)", node)
 		case TypeAction:
-			nliPrint("do(%d)", node.(Action).GetId())
+			w.lnPrint("do(%d)", node.(Action).GetId())
 		case TypeCommit:
-			nliPrintGotoIf(false, ko, "(commit(thunkPosition0))")
+			w.cJump(false, ko, "(commit(thunkPosition0))")
 		case TypeBegin:
 			if hasActions {
-				nliPrint("begin = position")
+				w.lnPrint("begin = position")
 			}
 		case TypeEnd:
 			if hasActions {
-				nliPrint("end = position")
+				w.lnPrint("end = position")
 			}
 		case TypeAlternate:
 			list := node.(List)
 			ok := label
 			label++
-			printBegin()
+			w.begin()
 			element := list.Front()
 			if element.Next() != nil || list.GetLastIsEmpty() {
-				printSave(ok)
+				w.save(ok)
 			}
 			for element.Next() != nil {
 				next := label
 				label++
 				compile(element.Value.(Node), next)
-				printJump(ok)
-				printLabel(next)
-				printRestore(ok)
+				w.jump(ok)
+				w.label(next)
+				w.restore(ok)
 				element = element.Next()
 			}
 			if list.GetLastIsEmpty() {
 				done := label
 				label++
 				compile(element.Value.(Node), done)
-				printJump(ok)
-				printLabel(done)
-				printRestore(ok)
+				w.jump(ok)
+				w.label(done)
+				w.restore(ok)
 			} else {
 				compile(element.Value.(Node), ko)
 			}
-			printEnd()
-			printLabel(ok)
+			w.end()
+			w.label(ok)
 		case TypeUnorderedAlternate:
 			list := node.(List)
 			done, ok := ko, label
 			label++
-			printBegin()
+			w.begin()
 			if list.GetLastIsEmpty() {
 				done = label
 				label++
-				printSave(ok)
+				w.save(ok)
 			}
-			nliPrintGotoIf(true, done, "position == len(p.Buffer)")
-			nliPrint("switch p.Buffer[position] {")
+			w.cJump(true, done, "position == len(p.Buffer)")
+			w.lnPrint("switch p.Buffer[position] {")
 			element := list.Front()
 			for ; element.Next() != nil; element = element.Next() {
 				sequence := element.Value.(List).Front()
 				class := sequence.Value.(Fix).GetNode().(Token).GetClass()
 				sequence = sequence.Next()
-				nliPrint("case")
+				w.lnPrint("case")
 				comma := false
 				for d := 0; d < 256; d++ {
 					if class.has(uint8(d)) {
@@ -1380,22 +1355,22 @@ func (p *%v) Init() {
 					}
 				}
 				print(":")
-				indent++
+				w.indent++
 				compile(sequence.Value.(Node), done)
-				indent--
+				w.indent--
 			}
-			nliPrint("default:")
-			indent++
+			w.lnPrint("default:")
+			w.indent++
 			compile(element.Value.(List).Front().Next().Value.(Node), done)
-			indent--
-			nliPrint("}")
+			w.indent--
+			w.lnPrint("}")
 			if list.GetLastIsEmpty() {
-				printJump(ok)
-				printLabel(done)
-				printRestore(ok)
+				w.jump(ok)
+				w.label(done)
+				w.restore(ok)
 			}
-			printEnd()
-			printLabel(ok)
+			w.end()
+			w.label(ok)
 		case TypeSequence:
 			for element := node.(List).Front(); element != nil; element = element.Next() {
 				compile(element.Value.(Node), ko)
@@ -1407,11 +1382,11 @@ func (p *%v) Init() {
 			}
 			ok := label
 			label++
-			printBegin()
-			printSave(ok)
+			w.begin()
+			w.save(ok)
 			compile(sub, ko)
-			printRestore(ok)
-			printEnd()
+			w.restore(ok)
+			w.end()
 		case TypePeekNot:
 			sub := node.(Fix).GetNode()
 			if canCompilePeek(sub, true, ko) {
@@ -1419,53 +1394,53 @@ func (p *%v) Init() {
 			}
 			ok := label
 			label++
-			printBegin()
-			printSave(ok)
+			w.begin()
+			w.save(ok)
 			compile(sub, ok)
-			printJump(ko)
-			printLabel(ok)
-			printRestore(ok)
-			printEnd()
+			w.jump(ko)
+			w.label(ok)
+			w.restore(ok)
+			w.end()
 		case TypeQuery:
 			qko := label
 			label++
 			qok := label
 			label++
-			printBegin()
-			printSave(qko)
+			w.begin()
+			w.save(qko)
 			compile(node.(Fix).GetNode(), qko)
-			printJump(qok)
-			printLabel(qko)
-			printRestore(qko)
-			printEnd()
-			printLabel(qok)
+			w.jump(qok)
+			w.label(qko)
+			w.restore(qko)
+			w.end()
+			w.label(qok)
 		case TypeStar:
 			again := label
 			label++
 			out := label
 			label++
-			printLabel(again)
-			printBegin()
-			printSave(out)
+			w.label(again)
+			w.begin()
+			w.save(out)
 			compile(node.(Fix).GetNode(), out)
-			printJump(again)
-			printLabel(out)
-			printRestore(out)
-			printEnd()
+			w.jump(again)
+			w.label(out)
+			w.restore(out)
+			w.end()
 		case TypePlus:
 			again := label
 			label++
 			out := label
 			label++
 			compile(node.(Fix).GetNode(), ko)
-			printLabel(again)
-			printBegin()
-			printSave(out)
+			w.label(again)
+			w.begin()
+			w.save(out)
 			compile(node.(Fix).GetNode(), out)
-			printJump(again)
-			printLabel(out)
-			printRestore(out)
-			printEnd()
+			w.jump(again)
+			w.label(out)
+			w.restore(out)
+			w.end()
 		case TypeNil:
 		default:
 			fmt.Fprintf(os.Stderr, "illegal node type: %v\n", node.GetType())
@@ -1482,34 +1457,34 @@ func (p *%v) Init() {
 		expression := rule.GetExpression()
 		if expression == nilNode {
 			fmt.Fprintf(os.Stderr, "rule '%v' used but not defined\n", rule)
-			nliPrint("nil,")
+			w.lnPrint("nil,")
 			continue
 		}
 		ko := label
 		label++
-		nliPrint("/* %v ", rule.GetId())
+		w.lnPrint("/* %v ", rule.GetId())
 		printRule(rule)
 		print(" */")
 		if count, ok := t.rulesCount[rule.String()]; !ok {
 			fmt.Fprintf(os.Stderr, "rule '%v' defined but not used\n", rule)
 		} else if t.inline && count == 1 && ko != 0 {
-			nliPrint("nil,")
+			w.lnPrint("nil,")
 			continue
 		}
-		nliPrint("func() bool {")
-		indent++
+		w.lnPrint("func() bool {")
+		w.indent++
 		if !expression.GetType().IsSafe() {
-			printSave(0)
+			w.save(0)
 		}
 		compileExpression(rule, ko)
-		nliPrint("return true")
+		w.lnPrint("return true")
 		if !expression.GetType().IsSafe() {
-			printLabel(ko)
-			printRestore(0)
-			nliPrint("return false")
+			w.label(ko)
+			w.restore(0)
+			w.lnPrint("return false")
 		}
-		indent--
-		nliPrint("},")
+		w.indent--
+		w.lnPrint("},")
 	}
 	print("\n\t}")
 	print("\n}\n")
@@ -1517,4 +1492,71 @@ func (p *%v) Init() {
 	for _, s := range t.trailers {
 		print("%s", s)
 	}
+}
+
+
+type writer struct {
+	*os.File
+	indent    int
+	hasCommit bool
+}
+
+func newWriter(out *os.File) *writer {
+	return &writer{File: out, indent: 2}
+}
+
+func (w *writer) begin() {
+	w.lnPrint("{")
+	w.indent++
+}
+
+func (w *writer) end() {
+	w.indent--
+	w.lnPrint("}")
+}
+
+func (w *writer) label(n uint) {
+	w.indent--
+	w.lnPrint("l%d:", n)
+	w.indent++
+}
+
+func (w *writer) jump(n uint) {
+	w.lnPrint("goto l%d", n)
+}
+
+func (w *writer) save(n uint) {
+	if w.hasCommit {
+		w.lnPrint("position%d, thunkPosition%d := position, thunkPosition", n, n)
+	} else {
+		w.lnPrint("position%d := position", n)
+	}
+}
+
+func (w *writer) restore(n uint) {
+	if w.hasCommit {
+		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", n, n)
+	} else {
+		w.lnPrint("position = position%d", n)
+	}
+}
+
+func (w *writer) cJump(jumpIfTrue bool, label uint, format string, a ...interface{}) {
+	if jumpIfTrue {
+		format = "if " + format
+	} else {
+		format = "if !" + format
+	}
+	w.lnPrint(format, a...)
+	fmt.Fprint(w, " {")
+	w.lnPrint("\tgoto l%d", label)
+	w.lnPrint("}")
+}
+
+func (w *writer) lnPrint(format string, a ...interface{}) {
+	s := "\n"
+	for i := 0; i < w.indent; i++ {
+		s += "\t"
+	}
+	fmt.Fprintf(w, s+format, a...)
 }
