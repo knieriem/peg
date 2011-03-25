@@ -336,14 +336,14 @@ func New(inline, _switch bool) *Tree {
 	return &Tree{rules: make(map[string]*rule),
 		rulesCount: make(map[string]uint),
 		classes:    make(map[string]*characterClass),
-		defines:	map[string]string{
-			"package": "",
-			"Peg": "yyParser",
+		defines: map[string]string{
+			"package":   "",
+			"Peg":       "yyParser",
 			"userstate": "",
-			"yystype": "yyStype",
+			"yystype":   "yyStype",
 		},
-		inline:     inline,
-		_switch:    _switch}
+		inline:  inline,
+		_switch: _switch}
 }
 
 func (t *Tree) push(n Node) {
@@ -1484,7 +1484,7 @@ type writer struct {
 	*os.File
 	indent    int
 	hasCommit bool
-	nLabels	int
+	nLabels   int
 }
 
 func newWriter(out *os.File) *writer {
@@ -1502,10 +1502,11 @@ func (w *writer) end() {
 }
 
 type label struct {
-	id, sid	int
+	id, sid int
 	*writer
 	used bool
 }
+
 func (w *writer) newLabel() *label {
 	i := w.nLabels
 	w.nLabels++
