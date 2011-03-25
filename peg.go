@@ -1282,20 +1282,23 @@ func (p *%v) Init() {
 			if element.Next() != nil || list.GetLastIsEmpty() {
 				ok.save()
 			}
+			var next *label
 			for element.Next() != nil {
-				next := w.newLabel()
+				next = w.newLabel()
 				compile(element.Value.(Node), next)
 				ok.jump()
 				ok.restore(next)
 				element = element.Next()
 			}
-			if list.GetLastIsEmpty() {
-				done := w.newLabel()
-				compile(element.Value.(Node), done)
-				ok.jump()
-				ok.restore(done)
-			} else {
-				compile(element.Value.(Node), ko)
+			if next == nil || next.used {
+				if list.GetLastIsEmpty() {
+					done := w.newLabel()
+					compile(element.Value.(Node), done)
+					ok.jump()
+					ok.restore(done)
+				} else {
+					compile(element.Value.(Node), ko)
+				}
 			}
 			w.end()
 			if ok.used {
