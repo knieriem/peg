@@ -1530,9 +1530,15 @@ func (w *label) save() {
 
 func (w *label) restore(label *label) {
 	if label != nil {
-		if label.used {
-			label.label()
+		if !label.used {
+			if w.hasCommit {
+				w.lnPrint("_, _ = position%d, thunkPosition%d", w.sid, w.sid)
+			} else {
+				w.lnPrint("_ = position%d", w.sid)
+			}
+			return
 		}
+		label.label()
 	}
 	if w.hasCommit {
 		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", w.sid, w.sid)
