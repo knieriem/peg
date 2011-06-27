@@ -828,7 +828,7 @@ func (t *Tree) Compile(file string) {
 		}
 	}
 
-	out, error := os.Open(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	out, error := os.Create(file)
 	if error != nil {
 		fmt.Printf("%v: %v\n", file, error)
 		return
