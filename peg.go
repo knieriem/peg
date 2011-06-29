@@ -337,6 +337,7 @@ type Tree struct {
 	actions         list.List
 	classes         map[string]*characterClass
 	defines         map[string]string
+	switchExcl      map[string]bool
 	stack           [1024]Node
 	top             int
 	inline, _switch bool
@@ -501,6 +502,12 @@ func (t *Tree) Define(name, text string) {
 	if _, ok := t.defines[name]; ok {
 		t.defines[name] = text
 	}
+}
+func (t *Tree) SwitchExclude(rule string) {
+	if t.switchExcl == nil {
+		t.switchExcl = make(map[string]bool, 16)
+	}
+	t.switchExcl[rule] = true
 }
 
 func (t *Tree) addList(listType Type) {
@@ -682,6 +689,9 @@ func (t *Tree) Compile(file string) {
 			switch node.GetType() {
 			case TypeRule:
 				rule := node.(Rule)
+				if t.switchExcl != nil && t.switchExcl[rule.String()] {
+					return
+				}
 				cache := &cache[rule.GetId()]
 				if cache.reached {
 					consumes, eof, peek, class = cache.consumes, cache.eof, cache.peek, cache.class
