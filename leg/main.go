@@ -13,6 +13,9 @@ import (
  "os"
 )
 
+var inline = flag.Bool("inline", false, "parse rule inlining")
+var _switch = flag.Bool("switch", false, "replace if-else if-else like blocks with switch blocks")
+
 func main() {
  runtime.GOMAXPROCS(2)
  flag.Parse()
@@ -29,7 +32,7 @@ func main() {
   fmt.Printf("%v\n", error)
   return
  }
- p := &leg.Leg{Tree: leg.New(false, false), Buffer: string(buffer)}
+ p := &leg.Leg{Tree: leg.New(*inline, *_switch), Buffer: string(buffer)}
  p.Init()
  if p.Parse(0) {p.Compile(file + ".go")} else {p.PrintError()}
 }
