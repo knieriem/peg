@@ -41,9 +41,8 @@ Definition	<- Identifier 			{ p.AddRule(yytext) }
 		 commit
 
 Expression	<- Sequence (BAR Sequence	{ p.AddAlternate() }
-			    )* (BAR           { p.AddEmptyAlternate() }
-                               )?
-                 /
+			    )* 
+
 Sequence	<- Prefix (Prefix		{ p.AddSequence() }
 			  )*
 Prefix		<- AND Action			{ p.AddPredicate(yytext) }
