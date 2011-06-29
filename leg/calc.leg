@@ -58,7 +58,7 @@ func main() {
 
 	b := bufio.NewReader(os.Stdin)
 	for {
-		if s, e := b.ReadString('\n'); e!=nil {
+		if s, e := b.ReadString('\n'); e != nil {
 			break
 		} else {
 			calc.ResetBuffer(s)
