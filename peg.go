@@ -89,6 +89,16 @@ func (r *rule) String() string {
 	return r.name
 }
 
+func (r *rule) goString() string {
+	b := []byte(r.String())
+	for i := 0; i < len(b); i++ {
+		if b[i] == '-' {
+			b[i] = '_'
+		}
+	}
+	return string(b)
+}
+
 type variable struct {
 	name   string
 	offset int
@@ -854,16 +864,10 @@ func (t *Tree) Compile(file string) {
 			continue
 		}
 		r := node.(*rule)
-		b := []byte(r.String())
-		for i := 0; i < len(b); i++ {
-			if b[i] == '-' {
-				b[i] = '_'
-			}
-		}
 		if r.GetId() == 0 {
-			print("\trule%s\t= iota\n", b)
+			print("\trule%s\t= iota\n", r.goString())
 		} else {
-			print("\trule%s\n", b)
+			print("\trule%s\n", r.goString())
 		}
 	}
 	pegname := t.defines["Peg"]
@@ -1249,7 +1253,7 @@ func (p *%v) Init() {
 			if t.inline && t.rulesCount[name] == 1 {
 				compileExpression(rule, ko)
 			} else {
-				ko.cJump(false, "p.rules[rule%s]()", rule.String())
+				ko.cJump(false, "p.rules[rule%s]()", rule.goString())
 			}
 			if varp != nil {
 				w.lnPrint("doarg(yySet, %d)", varp.offset)

@@ -68,7 +68,7 @@ Primary	        <- 'commit' Spacing             { p.AddCommit() }
 # Lexical syntax
 
 Identifier	<- < [-a-zA-Z_][-a-zA-Z_0-9]* > Spacing
-GoType		<- < '*'? [a-zA-Z_][a-zA-Z_0-9]* > Spacing
+GoType		<- < '*'? [a-zA-Z_][a-zA-Z_0-9.]* > Spacing
 Literal		<- ['] < (!['] Char )* > ['] Spacing
 		 / ["] < (!["] Char )* > ["] Spacing
 Class		<- '[' < (!']' Range)* > ']' Spacing
@@ -76,8 +76,12 @@ Range		<- Char '-' Char / Char
 Char		<- '\\' [abefnrtv'"\[\]\\]
 		 / '\\' [0-3][0-7][0-7]
 		 / '\\' [0-7][0-7]?
-		 / '\\' '-'
 		 / !'\\' .
+
+Action		<- '{' < Braces* > '}' Spacing
+Braces		<- '{' (!'}' .)* '}'
+		/ !'}' .
+
 EQUAL		<- '=' Spacing
 COLON		<- ':' Spacing
 SEMICOLON	<- ';' Spacing
@@ -90,15 +94,13 @@ PLUS		<- '+' Spacing
 OPEN		<- '(' Spacing
 CLOSE		<- ')' Spacing
 DOT		<- '.' Spacing
-Spacing		<- (Space / Comment)*
-Comment		<- '#' (!EndOfLine .)* EndOfLine
-Space		<- ' ' / '\t' / EndOfLine
-EndOfLine	<- '\r\n' / '\n' / '\r'
-EndOfFile	<- !.
-
-Action		<- '{' < Braces* > '}' Spacing
-Braces		<- '{' (!'}' .)* '}'
-		/ !'}' .
 BEGIN		<- '<' Spacing
 END		<- '>' Spacing
 RPERCENT	<- '%}' Spacing
+
+Spacing		<- (Space / Comment)*
+Space		<- ' ' / '\t' / EndOfLine
+Comment		<- '#' (!EndOfLine .)* EndOfLine
+EndOfLine	<- '\r\n' / '\n' / '\r'
+EndOfFile	<- !.
+

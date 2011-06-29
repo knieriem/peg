@@ -7,8 +7,11 @@ include ../Make.common
 .PHONY: all
 all: leg
 
-leg: main.$(O)
-	$(LD) -o leg main.$(O)
+
+# pe-leg: LEG parser generator created from a PE grammar
+
+pe-leg: main.$(O)
+	$(LD) -o pe-leg main.$(O)
 
 main.$(O): peg.$(O)
 
@@ -18,9 +21,20 @@ peg.$(O): ../peg.go leg.peg.go
 %.peg.go: %.peg ../peg
 	../peg -inline -switch $<
 
+
+# leg: LEG parser generator created from an LE grammar by pe-leg
+leg: leg.leg.$(O)
+	$(LD) -o $@ $<
+
+%.leg.go: %.leg ./pe-leg
+	./pe-leg -inline -switch $<
+
+leg.leg.$(O): peg.$(O)
+
+
 .PHONY: clean
 clean:
-	rm -f *.6 *.8 leg *.peg.go leg *leg.go calc
+	rm -f *.6 *.8 leg *.peg.go pe-leg *leg.go calc
 
 %: %.leg leg
 	./leg $<

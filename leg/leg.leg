@@ -1,0 +1,155 @@
+# LE Grammar for LE Grammars
+# 
+# Copyright (c) 2007 by Ian Piumarta
+# All rights reserved.
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the 'Software'),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, provided that the above copyright notice(s) and this
+# permission notice appear in all copies of the Software.  Acknowledgement
+# of the use of this Software in supporting documentation would be
+# appreciated but is not required.
+# 
+# THE SOFTWARE IS PROVIDED 'AS IS'.  USE ENTIRELY AT YOUR OWN RISK.
+# 
+# Adapted for use with Go based peg by M. Teichgräber.
+
+%{
+package main
+
+import (
+	"peg"
+	"fmt"
+	"os"
+	"flag"
+	"io/ioutil"
+)
+
+%}
+
+%userstate *peg.Tree
+%YYSTYPE int
+
+# Hierarchical syntax
+
+grammar=	- declaration?
+			(yystype | yyuserstate)*
+			( declaration | definition )+ trailer? end-of-file
+
+declaration=	- '%{' < ( !'%}' . )* > RPERCENT		{ p.AddHeader(yytext) }	commit
+
+yystype=	"%YYSTYPE" - gotype	{ p.Define("yystype", yytext) } commit
+
+yyuserstate=  "%userstate" - gotype { p.Define("userstate", yytext) } commit
+
+trailer=	'%%' < .* >				{ p.AddTrailer(yytext) }	commit
+
+definition=	identifier 				{ p.AddRule(yytext) }
+			EQUAL expression		{ p.AddExpression() }
+			SEMICOLON?
+			commit
+
+expression=	sequence (BAR sequence			{ p.AddAlternate() }
+			    )*
+
+sequence=	prefix (prefix				{ p.AddSequence() }
+			  )*
+
+prefix=		AND action				{ p.AddPredicate(yytext) }
+|		AND suffix				{ p.AddPeekFor() }
+|		NOT suffix				{ p.AddPeekNot() }
+|		    suffix
+
+suffix=		primary (QUESTION			{ p.AddQuery() }
+			     | STAR			{ p.AddStar() }
+			     | PLUS			{ p.AddPlus() }
+			   )?
+
+primary=	"commit" -			{ p.AddCommit() }
+|		identifier				{ p.AddVariable(yytext) }
+			COLON identifier !EQUAL		{ p.AddName(yytext) }
+|		identifier !EQUAL			{ p.AddName(yytext) }
+|		OPEN expression CLOSE
+|		literal					{ p.AddString(yytext) }
+|		class					{ p.AddClass(yytext) }
+|		DOT					{ p.AddDot() }
+|		action					{ p.AddAction(yytext) }
+|		BEGIN					{ p.AddBegin() }
+|		END					{ p.AddEnd() }
+
+# Lexical syntax
+
+identifier=	< [-a-zA-Z_][-a-zA-Z_0-9]* > -
+
+gotype=		< '*'? [a-zA-Z_][a-zA-Z_0-9.]* > -
+
+literal=	['] < ( !['] char )* > ['] -
+|		["] < ( !["] char )* > ["] -
+
+class=		'[' < ( !']' range )* > ']' -
+
+range=		char '-' char | char
+
+char=		'\\' [abefnrtv'"\[\]\\]
+|		'\\' [0-3][0-7][0-7]
+|		'\\' [0-7][0-7]?
+|		!'\\' .
+
+action=		'{' < braces* > '}' -
+
+braces=		'{' (!'}' .)* '}'
+|		!'}' .
+
+EQUAL=		'=' -
+COLON=		':' -
+SEMICOLON=	';' -
+BAR=		'|' -
+AND=		'&' -
+NOT=		'!' -
+QUESTION=	'?' -
+STAR=		'*' -
+PLUS=		'+' -
+OPEN=		'(' -
+CLOSE=		')' -
+DOT=		'.' -
+BEGIN=		'<' -
+END=		'>' -
+RPERCENT=	'%}' -
+
+-=		(space | comment)*
+space=		' ' | '\t' | end-of-line
+comment=	'#' (!end-of-line .)* end-of-line
+end-of-line=	'\r\n' | '\n' | '\r'
+end-of-file=	!.
+
+%%
+
+var inline = flag.Bool("inline", false, "parse rule inlining")
+var _switch = flag.Bool("switch", false, "replace if-else if-else like blocks with switch blocks")
+
+func main() {
+	flag.Parse()
+
+	if flag.NArg() != 1 {
+		flag.Usage()
+		fmt.Fprintln(os.Stdout, "  FILE: the leg file to compile")
+		os.Exit(1)
+	}
+	file := flag.Arg(0)
+
+	buffer, error := ioutil.ReadFile(file)
+	if error != nil {
+		fmt.Printf("%v\n", error)
+		return
+	}
+	p := &yyParser{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
+	p.Init()
+	if p.Parse(0) {
+		p.Compile(file + ".go")
+	} else {
+		p.PrintError()
+	}
+}
