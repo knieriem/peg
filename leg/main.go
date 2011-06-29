@@ -5,7 +5,7 @@
 package main
 
 import (
- "leg"
+ "peg"
  "fmt"
  "io/ioutil"
  "runtime"
@@ -32,7 +32,7 @@ func main() {
   fmt.Printf("%v\n", error)
   return
  }
- p := &leg.Leg{Tree: leg.New(*inline, *_switch), Buffer: string(buffer)}
+ p := &peg.Leg{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
  p.Init()
  if p.Parse(0) {p.Compile(file + ".go")} else {p.PrintError()}
 }

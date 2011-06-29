@@ -10,13 +10,10 @@ all: leg
 leg: main.$(O)
 	$(LD) -o leg main.$(O)
 
-main.$(O): leg.$(O)
+main.$(O): peg.$(O)
 
-leg.$(O): leg.go leg.peg.go
-	$(GC) $^
-
-leg.go: ../peg.go
-	sed 's,^package peg,package leg,g' < $< > $@
+peg.$(O): ../peg.go leg.peg.go
+	$(GC) -o $@ $^
 
 %.peg.go: %.peg ../peg
 	../peg -inline -switch $<
