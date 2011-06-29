@@ -37,6 +37,6 @@ clean:
 	rm -f *.6 *.8 leg *.peg.go pe-leg *leg.go calc
 
 %: %.leg leg
-	./leg $<
+	./leg -switch $<
 	$(GC) $<.go
 	$(LD) -o $@ $<.$(O)

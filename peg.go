@@ -555,6 +555,8 @@ func join(tasks []func()) {
 	}
 }
 
+var emptyString = new(characterClass)
+
 func (t *Tree) Compile(file string) {
 	counts := [TypeLast]uint{}
 	nvar := 0
@@ -708,6 +710,10 @@ func (t *Tree) Compile(file string) {
 					class[index] = 0xff
 				}
 			case TypeString, TypeCharacter:
+				if node.String() == "" {
+					consumes, class = true, emptyString
+					return
+				}
 				consumes, class = true, new(characterClass)
 				b := node.String()[0]
 				if b == '\\' {
@@ -742,6 +748,10 @@ func (t *Tree) Compile(file string) {
 					}, alternate.Len()), 0
 				for element := alternate.Front(); element != nil; element = element.Next() {
 					mconsumes, meof, mpeek, properties[c].class = optimizeAlternates(element.Value.(Node))
+					if c+1 == len(properties) && properties[c].class == emptyString {
+						properties = properties[:c]
+						break
+					}
 					consumes, eof, peek = consumes && mconsumes, eof || meof, peek && mpeek
 					if properties[c].class != nil {
 						class.union(properties[c].class)
@@ -1356,6 +1366,8 @@ func (p *%v) Init() {
 							s = `\t` /* ht */
 						case '\v':
 							s = `\v` /* vt */
+						case '\\':
+							s = `\\` /* \ */
 						case '\'':
 							s = `\'` /* ' */
 						default:
