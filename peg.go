@@ -1095,7 +1095,9 @@ func (p *%v) Init() {
 `+`	}
 `+`	peekDot := func() bool {
 `+`		return position < len(p.Buffer)
-`+`	}`)
+`+`	}
+`+`	_ = peekDot
+`)
 	}
 	if counts[TypeCharacter] > 0 {
 		print(
@@ -1111,7 +1113,9 @@ func (p *%v) Init() {
 `+`	}
 `+`	peekChar := func(c byte) bool {
 `+`		return position < len(p.Buffer) && p.Buffer[position] == c
-`+`	}`)
+`+`	}
+`+`	_ = peekChar
+`)
 	}
 	if counts[TypeString] > 0 {
 		print(
