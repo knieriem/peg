@@ -1285,7 +1285,12 @@ func (p *%v) Init() {
 		case TypeCharacter:
 			ko.cJump(false, "matchChar('%v')", node)
 		case TypeString:
-			ko.cJump(false, "matchString(\"%v\")", node)
+			s := node.String()
+			if s == "" {
+				ko.cJump(false, "peekDot()")
+			} else {
+				ko.cJump(false, "matchString(\"%s\")", s)
+			}
 		case TypeClass:
 			ko.cJump(false, "matchClass(%d)", classes[node.String()])
 		case TypePredicate:
