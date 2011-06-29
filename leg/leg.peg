@@ -29,11 +29,9 @@ Grammar	<- Spacing
 
 Declaration	<- Spacing '%{' < (!'%}' . )* > RPERCENT { p.AddHeader(yytext) } commit
 
-YYstype		<- '%YYSTYPE' Spacing GoType	{ p.Define("yystype", yytext) }
-		Spacing
+YYstype		<- '%YYSTYPE' Spacing GoType	{ p.Define("yystype", yytext) } commit
 
-YYuserstate	<- '%userstate' Spacing GoType { p.Define("userstate", yytext) }
-		Spacing
+YYuserstate	<- '%userstate' Spacing GoType { p.Define("userstate", yytext) } commit
 
 Trailer		<- '%%' < .* >			{ p.AddTrailer(yytext) } commit
 
