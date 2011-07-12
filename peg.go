@@ -170,12 +170,12 @@ func (a *action) GetRule() string {
 	return a.rule.String()
 }
 
-/* Used to represent a TypeAlternate or TypeSequence. */
+/* Used to represent a TypeAlternate, TypeSequence, TypePeekFor, TypePeekNot, TypeQuery, TypeStar, or TypePlus */
+
 type List interface {
 	Node
 	SetType(t Type)
-	SetLastIsEmpty(lastIsEmpty bool)
-	GetLastIsEmpty() bool
+
 	Init() *list.List
 	Front() *list.Element
 	PushBack(value interface{}) *list.Element
@@ -185,19 +185,10 @@ type List interface {
 type nodeList struct {
 	Type
 	list.List
-	lastIsEmpty bool
 }
 
 func (l *nodeList) SetType(t Type) {
 	l.Type = t
-}
-
-func (l *nodeList) SetLastIsEmpty(lastIsEmpty bool) {
-	l.lastIsEmpty = lastIsEmpty
-}
-
-func (l *nodeList) GetLastIsEmpty() bool {
-	return l.lastIsEmpty
 }
 
 func (l *nodeList) String() string {
@@ -207,31 +198,6 @@ func (l *nodeList) String() string {
 		s += " / " + i.Value.(fmt.Stringer).String()
 	}
 	return s + ")"
-}
-
-/* Used to represent a TypePeekFor, TypePeekNot, TypeQuery, TypeStar, or TypePlus */
-type Fix interface {
-	Node
-	GetNode() Node
-	SetNode(node Node)
-}
-
-type fix struct {
-	Type
-	string
-	node Node
-}
-
-func (f *fix) String() string {
-	return f.string
-}
-
-func (f *fix) GetNode() Node {
-	return f.node
-}
-
-func (f *fix) SetNode(node Node) {
-	f.node = node
 }
 
 /* Used to represent character classes. */
@@ -487,6 +453,7 @@ func (t *Tree) AddBegin() { t.push(begin) }
 var end *token = &token{Type: TypeEnd, string: ">"}
 
 func (t *Tree) AddEnd() { t.push(end) }
+func (t *Tree) AddNil() { t.push(nilNode) }
 func (t *Tree) AddAction(text string) {
 	b := []byte(text)
 	for i := 0; i < len(b)-1; i++ {
@@ -524,21 +491,13 @@ func (t *Tree) addList(listType Type) {
 	t.push(l)
 }
 func (t *Tree) AddAlternate() { t.addList(TypeAlternate) }
-func (t *Tree) AddEmptyAlternate() {
-	a := t.pop()
-	var l List
-	if a.GetType() == TypeAlternate {
-		l = a.(List)
-		l.SetLastIsEmpty(true)
-	} else {
-		l = &nodeList{Type: TypeAlternate, lastIsEmpty: true}
-		l.PushBack(a)
-	}
-	t.push(l)
-}
 func (t *Tree) AddSequence() { t.addList(TypeSequence) }
 
-func (t *Tree) addFix(fixType Type) { t.push(&fix{Type: fixType, node: t.pop()}) }
+func (t *Tree) addFix(fixType Type) {
+	n := &nodeList{Type: fixType}
+	n.PushBack(t.pop())
+	t.push(n)
+}
 func (t *Tree) AddPeekFor()         { t.addFix(TypePeekFor) }
 func (t *Tree) AddPeekNot()         { t.addFix(TypePeekNot) }
 func (t *Tree) AddQuery()           { t.addFix(TypeQuery) }
@@ -593,7 +552,7 @@ func (t *Tree) Compile(file string) {
 						countTypes(element.Value.(Node))
 					}
 				case TypePeekFor, TypePeekNot, TypeQuery, TypeStar, TypePlus:
-					countTypes(node.(Fix).GetNode())
+					countTypes(node.(List).Front().Value.(Node))
 				}
 			}
 			for _, rule := range t.rules {
@@ -625,7 +584,7 @@ func (t *Tree) Compile(file string) {
 						countRules(element.Value.(Node))
 					}
 				case TypePeekFor, TypePeekNot, TypeQuery, TypeStar, TypePlus:
-					countRules(node.(Fix).GetNode())
+					countRules(node.(List).Front().Value.(Node))
 				}
 			}
 			for element := t.Front(); element != nil; element = element.Next() {
@@ -668,7 +627,7 @@ func (t *Tree) Compile(file string) {
 				case TypeName:
 					return checkRecursion(t.rules[node.String()])
 				case TypePlus:
-					return checkRecursion(node.(Fix).GetNode())
+					return checkRecursion(node.(List).Front().Value.(Node))
 				case TypeCharacter, TypeString:
 					return len(node.String()) > 0
 				case TypeDot, TypeClass:
@@ -782,12 +741,16 @@ func (t *Tree) Compile(file string) {
 							ordered.PushBack(element.Value)
 						} else {
 							class := &token{Type: TypeClass, string: properties[c].class.String(), class: properties[c].class}
-							sequence, predicate :=
-								&nodeList{Type: TypeSequence}, &fix{Type: TypePeekFor, node: class}
+
+							sequence, predicate, length := 
+								&nodeList{Type: TypeSequence}, &nodeList{Type: TypePeekFor}, properties[c].class.len()
+							predicate.PushBack(class)
 							sequence.PushBack(predicate)
 							sequence.PushBack(element.Value)
-							length := properties[c].class.len()
-							if length > max {
+
+							if element.Value.(Node).GetType() == TypeNil {
+								unordered.PushBack(sequence)
+							} else if length > max {
 								unordered.PushBack(sequence)
 								max = length
 							} else {
@@ -816,7 +779,7 @@ func (t *Tree) Compile(file string) {
 						peek  bool
 						class *characterClass
 					}, sequence.Len()), 0, sequence.Front()
-				for ; !consumes && element != nil; element, c = element.Next(), c+1 {
+				for ; !consumes && element != nil; element, c = element.Next(), c + 1 {
 					consumes, meof, classes[c].peek, classes[c].class = optimizeAlternates(element.Value.(Node))
 					eof, peek = eof || meof, peek || classes[c].peek
 				}
@@ -835,7 +798,7 @@ func (t *Tree) Compile(file string) {
 				}
 			case TypePeekNot:
 				peek = true
-				_, eof, _, class = optimizeAlternates(node.(Fix).GetNode())
+				_, eof, _, class = optimizeAlternates(node.(List).Front().Value.(Node))
 				eof = !eof
 				class = class.copy()
 				class.complement()
@@ -843,10 +806,12 @@ func (t *Tree) Compile(file string) {
 				peek = true
 				fallthrough
 			case TypeQuery, TypeStar:
-				_, eof, _, class = optimizeAlternates(node.(Fix).GetNode())
+				_, eof, _, class = optimizeAlternates(node.(List).Front().Value.(Node))
 			case TypePlus:
-				consumes, eof, peek, class = optimizeAlternates(node.(Fix).GetNode())
-			}
+				consumes, eof, peek, class = optimizeAlternates(node.(List).Front().Value.(Node))
+			case TypeAction, TypeNil:
+				class = new(characterClass)
+ 			}
 			return
 		}
 		for element := t.Front(); element != nil; element = element.Next() {
@@ -1200,9 +1165,6 @@ func (p *%v) Init() {
 				print(" / ")
 				printRule(element.Value.(Node))
 			}
-			if list.GetLastIsEmpty() {
-				print(" /")
-			}
 			print(")")
 		case TypeUnorderedAlternate:
 			print("(")
@@ -1224,18 +1186,18 @@ func (p *%v) Init() {
 			print(")")
 		case TypePeekFor:
 			print("&")
-			printRule(node.(Fix).GetNode())
+			printRule(node.(List).Front().Value.(Node))
 		case TypePeekNot:
 			print("!")
-			printRule(node.(Fix).GetNode())
+			printRule(node.(List).Front().Value.(Node))
 		case TypeQuery:
-			printRule(node.(Fix).GetNode())
+			printRule(node.(List).Front().Value.(Node))
 			print("?")
 		case TypeStar:
-			printRule(node.(Fix).GetNode())
+			printRule(node.(List).Front().Value.(Node))
 			print("*")
 		case TypePlus:
-			printRule(node.(Fix).GetNode())
+			printRule(node.(List).Front().Value.(Node))
 			print("+")
 		default:
 			fmt.Fprintf(os.Stderr, "illegal node type: %v\n", node.GetType())
@@ -1312,7 +1274,7 @@ func (p *%v) Init() {
 			ok := w.newLabel()
 			w.begin()
 			element := list.Front()
-			if element.Next() != nil || list.GetLastIsEmpty() {
+			if element.Next() != nil {
 				ok.save()
 			}
 			var next *label
@@ -1324,14 +1286,7 @@ func (p *%v) Init() {
 				element = element.Next()
 			}
 			if next == nil || next.used {
-				if list.GetLastIsEmpty() {
-					done := w.newLabel()
-					compile(element.Value.(Node), done)
-					ok.jump()
-					ok.restore(done)
-				} else {
-					compile(element.Value.(Node), ko)
-				}
+				compile(element.Value.(Node), ko)
 			}
 			w.end()
 			if ok.used {
@@ -1341,16 +1296,12 @@ func (p *%v) Init() {
 			list := node.(List)
 			done, ok := ko, w.newLabel()
 			w.begin()
-			if list.GetLastIsEmpty() {
-				done = w.newLabel()
-				ok.save()
-			}
 			done.cJump(true, "position == len(p.Buffer)")
 			w.lnPrint("switch p.Buffer[position] {")
 			element := list.Front()
 			for ; element.Next() != nil; element = element.Next() {
 				sequence := element.Value.(List).Front()
-				class := sequence.Value.(Fix).GetNode().(Token).GetClass()
+				class := sequence.Value.(List).Front().Value.(Node).(Token).GetClass()
 				sequence = sequence.Next()
 				w.lnPrint("case")
 				comma := false
@@ -1396,10 +1347,6 @@ func (p *%v) Init() {
 			compile(element.Value.(List).Front().Next().Value.(Node), done)
 			w.indent--
 			w.lnPrint("}")
-			if list.GetLastIsEmpty() {
-				ok.jump()
-				ok.restore(done)
-			}
 			w.end()
 			if ok.used {
 				ok.label()
@@ -1409,7 +1356,7 @@ func (p *%v) Init() {
 				compile(element.Value.(Node), ko)
 			}
 		case TypePeekFor:
-			sub := node.(Fix).GetNode()
+			sub := node.(List).Front().Value.(Node)
 			if canCompilePeek(sub, false, ko) {
 				return
 			}
@@ -1420,7 +1367,7 @@ func (p *%v) Init() {
 			ok.restore(nil)
 			w.end()
 		case TypePeekNot:
-			sub := node.(Fix).GetNode()
+			sub := node.(List).Front().Value.(Node)
 			if canCompilePeek(sub, true, ko) {
 				return
 			}
@@ -1436,7 +1383,7 @@ func (p *%v) Init() {
 			qok := w.newLabel()
 			w.begin()
 			qko.save()
-			compile(node.(Fix).GetNode(), qko)
+			compile(node.(List).Front().Value.(Node), qko)
 			qok.jump()
 			qko.restore(qko)
 			w.end()
@@ -1447,18 +1394,18 @@ func (p *%v) Init() {
 			again.label()
 			w.begin()
 			out.save()
-			compile(node.(Fix).GetNode(), out)
+			compile(node.(List).Front().Value.(Node), out)
 			again.jump()
 			out.restore(out)
 			w.end()
 		case TypePlus:
 			again := w.newLabel()
 			out := w.newLabel()
-			compile(node.(Fix).GetNode(), ko)
+			compile(node.(List).Front().Value.(Node), ko)
 			again.label()
 			w.begin()
 			out.save()
-			compile(node.(Fix).GetNode(), out)
+			compile(node.(List).Front().Value.(Node), out)
 			again.jump()
 			out.restore(out)
 			w.end()
