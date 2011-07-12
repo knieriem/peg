@@ -1282,7 +1282,7 @@ func (p *%v) Init() {
 				next = w.newLabel()
 				compile(element.Value.(Node), next)
 				ok.jump()
-				ok.restore(next)
+				ok.lrestore(next)
 				element = element.Next()
 			}
 			if next == nil || next.used {
@@ -1360,55 +1360,45 @@ func (p *%v) Init() {
 			if canCompilePeek(sub, false, ko) {
 				return
 			}
-			ok := w.newLabel()
-			w.begin()
-			ok.save()
+			l := w.newLabel()
+			l.saveBlock()
 			compile(sub, ko)
-			ok.restore(nil)
-			w.end()
+			l.lrestore(nil)
 		case TypePeekNot:
 			sub := node.(List).Front().Value.(Node)
 			if canCompilePeek(sub, true, ko) {
 				return
 			}
 			ok := w.newLabel()
-			w.begin()
-			ok.save()
+			ok.saveBlock()
 			compile(sub, ok)
 			ko.jump()
-			ok.restore(ok)
-			w.end()
+			ok.restore()
 		case TypeQuery:
 			qko := w.newLabel()
 			qok := w.newLabel()
-			w.begin()
-			qko.save()
+			qko.saveBlock()
 			compile(node.(List).Front().Value.(Node), qko)
 			qok.jump()
-			qko.restore(qko)
-			w.end()
+			qko.restore()
 			qok.label()
 		case TypeStar:
 			again := w.newLabel()
 			out := w.newLabel()
 			again.label()
-			w.begin()
-			out.save()
+			out.saveBlock()
 			compile(node.(List).Front().Value.(Node), out)
 			again.jump()
-			out.restore(out)
-			w.end()
+			out.restore()
 		case TypePlus:
 			again := w.newLabel()
 			out := w.newLabel()
 			compile(node.(List).Front().Value.(Node), ko)
 			again.label()
-			w.begin()
-			out.save()
+			out.saveBlock()
 			compile(node.(List).Front().Value.(Node), out)
 			again.jump()
-			out.restore(out)
-			w.end()
+			out.restore()
 		case TypeNil:
 		default:
 			fmt.Fprintf(os.Stderr, "illegal node type: %v\n", node.GetType())
@@ -1447,7 +1437,7 @@ func (p *%v) Init() {
 		compileExpression(rule, ko)
 		w.lnPrint("return true")
 		if !expression.GetType().IsSafe() {
-			ko.restore(ko)
+			ko.restore()
 			w.lnPrint("return false")
 		}
 		w.indent--
@@ -1487,12 +1477,13 @@ type label struct {
 	id, sid int
 	*writer
 	used bool
+	savedBlockOpen bool
 }
 
 func (w *writer) newLabel() *label {
 	i := w.nLabels
 	w.nLabels++
-	return &label{i, i, w, false}
+	return &label{id: i, sid: i, writer: w}
 }
 
 func (w *label) label() {
@@ -1506,6 +1497,11 @@ func (w *label) jump() {
 	w.used = true
 }
 
+func (w *label) saveBlock() {
+	w.begin()
+	w.save()
+	w.savedBlockOpen = true
+}
 func (w *label) save() {
 	if w.hasCommit {
 		w.lnPrint("position%d, thunkPosition%d := position, thunkPosition", w.sid, w.sid)
@@ -1514,7 +1510,10 @@ func (w *label) save() {
 	}
 }
 
-func (w *label) restore(label *label) {
+func (w *label) restore() {
+	w.lrestore(w)
+}
+func (w *label) lrestore(label *label) {
 	if label != nil {
 		if !label.used {
 			if w.hasCommit {
@@ -1530,6 +1529,10 @@ func (w *label) restore(label *label) {
 		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", w.sid, w.sid)
 	} else {
 		w.lnPrint("position = position%d", w.sid)
+	}
+	if w.savedBlockOpen {
+		w.end()
+		w.savedBlockOpen = false
 	}
 }
 
