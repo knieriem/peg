@@ -2,15 +2,11 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
+PKGROOT = ..
 include ../Make.common
 
 bootstrap: main.$(O)
 	$(LD) -o bootstrap main.$(O)
-
-main.$(O): peg.$(O)
-
-peg.$(O):
-	$(GC) ../peg.go
 
 .PHONY: clean
 clean:

@@ -32,7 +32,7 @@ func main() {
   fmt.Printf("%v\n", error)
   return
  }
- p := &peg.Leg{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
+ p := &Leg{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
  p.Init()
  if p.Parse(0) {p.Compile(file + ".go")} else {p.PrintError()}
 }

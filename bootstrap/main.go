@@ -18,10 +18,10 @@ func main() {
    type Peg Peg {
     *Tree
    }*/
- t.Define("package", "peg")
+ t.Define("package", "main")
  t.Define("Peg", "Peg")
  t.Define("userstate", `
- *Tree
+ *peg.Tree
 `)
 
  /* Grammar         <- Spacing 'package' Spacing Identifier      { p.Define("package", yytext) }

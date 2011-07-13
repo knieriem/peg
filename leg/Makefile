@@ -2,6 +2,7 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
+PKGROOT = ..
 include ../Make.common
 
 .PHONY: all
@@ -13,10 +14,7 @@ all: leg
 pe-leg: main.$(O)
 	$(LD) -o pe-leg main.$(O)
 
-main.$(O): peg.$(O)
-
-peg.$(O): ../peg.go leg.peg.go
-	$(GC) -o $@ $^
+main.$(O): ../peg.$(O) leg.peg.go
 
 %.peg.go: %.peg ../peg
 	../peg -inline -switch $<
@@ -29,7 +27,7 @@ leg: leg.leg.$(O)
 %.leg.go: %.leg ./pe-leg
 	./pe-leg -inline -switch $<
 
-leg.leg.$(O): peg.$(O)
+leg.leg.$(O): ../peg.$(O)
 
 
 .PHONY: clean

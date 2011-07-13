@@ -841,7 +841,12 @@ func (t *Tree) Compile(file string) {
 	}
 
 	if p := t.defines["package"]; p != "" {
-		print("package %v\n\nimport \"fmt\"\n", p)
+		print(`package %v
+
+import (
+	"fmt"
+	"peg"
+)`, p)
 	}
 	print("\nconst (\n")
 	for el := t.Front(); el != nil; el = el.Next() {

@@ -8,12 +8,12 @@
 #     Foundation."  Symposium on Principles of Programming Languages,
 #     January 14--16, 2004, Venice, Italy.
 
-package peg
+package main
 
 # parser declaration
 
 type Peg Peg {
- *Tree
+ *peg.Tree
 }
 
 # Hierarchical syntax

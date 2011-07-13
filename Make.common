@@ -3,8 +3,8 @@
 # license that can be found in the LICENSE file.
 
 include $(GOROOT)/src/Make.inc
-GC := $(GC) -I ./
-LD := $(LD) -L ./
+GC := $(GC)
+LD := $(LD) -L $(PKGROOT)
 
 %.$(O): %.go
-	$(GC) $<
+	$(GC) -I $(PKGROOT) $(filter %.go,$^)
