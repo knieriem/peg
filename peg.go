@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"container/list"
 	"os"
+	"io"
 )
 
 type Type uint8
@@ -42,10 +43,6 @@ func (t Type) GetType() Type {
 	return t
 }
 
-func (t Type) IsSafe() bool {
-	return (t == TypeQuery) || (t == TypeStar)
-}
-
 type Node interface {
 	fmt.Stringer
 	GetType() Type
@@ -63,6 +60,7 @@ type rule struct {
 	name       string
 	id         int
 	expression Node
+	hasActions bool
 	variables  map[string]*variable
 }
 
@@ -462,6 +460,7 @@ func (t *Tree) AddAction(text string) {
 		}
 	}
 	a := &action{text: string(b), id: t.actions.Len(), rule: t.currentRule()}
+	t.currentRule().hasActions = true
 	t.actions.PushBack(a)
 	t.push(a)
 }
@@ -830,10 +829,12 @@ func (t *Tree) Compile(file string) {
 	}
 	defer out.Close()
 
-	print := func(format string, a ...interface{}) {
-		fmt.Fprintf(out, format, a...)
-	}
 	w := newWriter(out)
+	print := func(format string, a ...interface{}) {
+		if !w.dryRun {
+			fmt.Fprintf(w, format, a...)
+		}
+	}
 
 	for _, s := range t.headers {
 		print("%s", s)
@@ -1128,7 +1129,7 @@ func (p *%v) Init() {
 	}
 
 	var printRule func(node Node)
-	var compile func(expression Node, ko *label)
+	var compile func(expression Node, ko *label) (chgFlags, chgFlags)
 	printRule = func(node Node) {
 		switch node.GetType() {
 		case TypeRule:
@@ -1203,15 +1204,18 @@ func (p *%v) Init() {
 			fmt.Fprintf(os.Stderr, "illegal node type: %v\n", node.GetType())
 		}
 	}
-	compileExpression := func(rule *rule, ko *label) {
+	compileExpression := func(rule *rule, ko *label) (cko, cok chgFlags) {
 		nvar := len(rule.variables)
 		if nvar > 0 {
 			w.lnPrint("doarg(yyPush, %d)", nvar)
 		}
-		compile(rule.GetExpression(), ko)
+		cko, cok = compile(rule.GetExpression(), ko)
 		if nvar > 0 {
 			w.lnPrint("doarg(yyPop, %d)", nvar)
+			cko.thPos = true
+			cok.thPos = true
 		}
+		return
 	}
 	canCompilePeek := func(node Node, jumpIfTrue bool, label *label) bool {
 		switch node.GetType() {
@@ -1226,26 +1230,40 @@ func (p *%v) Init() {
 		}
 		return true
 	}
-	compile = func(node Node, ko *label) {
+	compile = func(node Node, ko *label) (chgko, chgok chgFlags) {
+		updateFlags := func(cko, cok chgFlags) (chgFlags, chgFlags) {
+			if cko.pos { chgko.pos = true }
+			if cko.thPos { chgko.thPos = true }
+			if cok.pos { chgok.pos = true }
+			if cok.thPos { chgok.thPos = true }
+			return cko, cok
+		}
 		switch node.GetType() {
 		case TypeRule:
 			fmt.Fprintf(os.Stderr, "internal error #1 (%v)\n", node)
 		case TypeDot:
 			ko.cJump(false, "matchDot()")
+			chgok.pos = true
 		case TypeName:
 			varp := node.(*name).varp
 			name := node.String()
 			rule := t.rules[name]
 			if t.inline && t.rulesCount[name] == 1 {
-				compileExpression(rule, ko)
+				chgko, chgok = compileExpression(rule, ko)
 			} else {
 				ko.cJump(false, "p.rules[rule%s]()", rule.goString())
+				if len(rule.variables) != 0 || rule.hasActions {
+					chgok.thPos = true
+				}
+				chgok.pos = true	// safe guess
 			}
 			if varp != nil {
 				w.lnPrint("doarg(yySet, %d)", varp.offset)
+				chgok.thPos = true
 			}
 		case TypeCharacter:
 			ko.cJump(false, "matchChar('%v')", node)
+			chgok.pos = true
 		case TypeString:
 			s := node.String()
 			if s == "" {
@@ -1253,14 +1271,18 @@ func (p *%v) Init() {
 			} else {
 				ko.cJump(false, "matchString(\"%s\")", s)
 			}
+			chgok.pos = true
 		case TypeClass:
 			ko.cJump(false, "matchClass(%d)", classes[node.String()])
+			chgok.pos = true
 		case TypePredicate:
 			ko.cJump(false, "(%v)", node)
 		case TypeAction:
 			w.lnPrint("do(%d)", node.(Action).GetId())
+			chgok.thPos = true
 		case TypeCommit:
 			ko.cJump(false, "(commit(thunkPosition0))")
+			chgko.thPos = true
 		case TypeBegin:
 			if hasActions {
 				w.lnPrint("begin = position")
@@ -1272,23 +1294,27 @@ func (p *%v) Init() {
 		case TypeAlternate:
 			list := node.(List)
 			ok := w.newLabel()
-			w.begin()
 			element := list.Front()
-			if element.Next() != nil {
+			if ok.unsafe() {
+				w.begin()
 				ok.save()
 			}
 			var next *label
 			for element.Next() != nil {
 				next = w.newLabel()
-				compile(element.Value.(Node), next)
+				cko, _ := updateFlags(compile(element.Value.(Node), next))
 				ok.jump()
-				ok.lrestore(next)
+				if next.used {
+					ok.lrestore(next, cko.pos, cko.thPos)
+				}
 				element = element.Next()
 			}
 			if next == nil || next.used {
-				compile(element.Value.(Node), ko)
+				updateFlags(compile(element.Value.(Node), ko))
 			}
-			w.end()
+			if ok.unsafe() {
+				w.end()
+			}
 			if ok.used {
 				ok.label()
 			}
@@ -1339,12 +1365,12 @@ func (p *%v) Init() {
 				}
 				print(":")
 				w.indent++
-				compile(sequence.Value.(Node), done)
+				updateFlags(compile(sequence.Value.(Node), done))
 				w.indent--
 			}
 			w.lnPrint("default:")
 			w.indent++
-			compile(element.Value.(List).Front().Next().Value.(Node), done)
+			updateFlags(compile(element.Value.(List).Front().Next().Value.(Node), done))
 			w.indent--
 			w.lnPrint("}")
 			w.end()
@@ -1353,7 +1379,11 @@ func (p *%v) Init() {
 			}
 		case TypeSequence:
 			for element := node.(List).Front(); element != nil; element = element.Next() {
-				compile(element.Value.(Node), ko)
+				updateFlags(compile(element.Value.(Node), ko))
+			}
+			if node.(List).Len() > 1 {
+				if chgok.pos { chgko.pos = true }
+				if chgok.thPos { chgko.thPos = true}
 			}
 		case TypePeekFor:
 			sub := node.(List).Front().Value.(Node)
@@ -1362,8 +1392,9 @@ func (p *%v) Init() {
 			}
 			l := w.newLabel()
 			l.saveBlock()
-			compile(sub, ko)
-			l.lrestore(nil)
+			cko, cok := compile(sub, ko)
+			l.lrestore(nil, cok.pos, cok.thPos)
+			chgko = cko
 		case TypePeekNot:
 			sub := node.(List).Front().Value.(Node)
 			if canCompilePeek(sub, true, ko) {
@@ -1371,40 +1402,83 @@ func (p *%v) Init() {
 			}
 			ok := w.newLabel()
 			ok.saveBlock()
-			compile(sub, ok)
+			cko, cok := compile(sub, ok)
 			ko.jump()
-			ok.restore()
+			if ok.used {
+				ok.restore(cko.pos, cko.thPos)
+			}
+			chgko = cok
 		case TypeQuery:
 			qko := w.newLabel()
 			qok := w.newLabel()
 			qko.saveBlock()
-			compile(node.(List).Front().Value.(Node), qko)
-			qok.jump()
-			qko.restore()
-			qok.label()
+			cko, cok := compile(node.(List).Front().Value.(Node), qko)
+			if qko.unsafe() {
+				qok.jump()
+			}
+			if qko.used {
+				qko.restore(cko.pos, cko.thPos)
+			}
+			if qko.unsafe() {
+				qok.label()
+			}
+			chgok = cok
 		case TypeStar:
 			again := w.newLabel()
 			out := w.newLabel()
 			again.label()
 			out.saveBlock()
-			compile(node.(List).Front().Value.(Node), out)
+			cko, cok := compile(node.(List).Front().Value.(Node), out)
 			again.jump()
-			out.restore()
+			out.restore(cko.pos, cko.thPos)
+			chgok = cok
 		case TypePlus:
 			again := w.newLabel()
 			out := w.newLabel()
-			compile(node.(List).Front().Value.(Node), ko)
+			updateFlags(compile(node.(List).Front().Value.(Node), ko))
 			again.label()
 			out.saveBlock()
-			compile(node.(List).Front().Value.(Node), out)
+			cko, _ := compile(node.(List).Front().Value.(Node), out)
 			again.jump()
-			out.restore()
+			if out.used {
+				out.restore(cko.pos, cko.thPos)
+			}
 		case TypeNil:
 		default:
 			fmt.Fprintf(os.Stderr, "illegal node type: %v\n", node.GetType())
 		}
+		return
 	}
 
+	// dry compilation
+	// figure out which items need to restore position resp. thunkPosition,
+	// storing into w.saveFlags
+	w.setDry(true)
+	for element := t.Front(); element != nil; element = element.Next() {
+		node := element.Value.(Node)
+		if node.GetType() != TypeRule {
+			continue
+		}
+		rule := node.(*rule)
+		expression := rule.GetExpression()
+		if expression == nilNode {
+			continue
+		}
+		ko := w.newLabel()
+		ko.sid = 0
+		if count, ok := t.rulesCount[rule.String()]; !ok {
+		} else if t.inline && count == 1 && ko.id != 0 {
+			continue
+		}
+		ko.save()
+		cko, _ := compileExpression(rule, ko)
+		if ko.used {
+			ko.restore(cko.pos, cko.thPos)
+		}
+	}
+	w.setDry(false)
+
+	/* now for the real compile pass */
 	print("\n\tp.rules = [...]func() bool{")
 	for element := t.Front(); element != nil; element = element.Next() {
 		node := element.Value.(Node)
@@ -1431,13 +1505,11 @@ func (p *%v) Init() {
 		}
 		w.lnPrint("func() bool {")
 		w.indent++
-		if !expression.GetType().IsSafe() {
-			ko.save()
-		}
-		compileExpression(rule, ko)
+		ko.save()
+		cko, _ := compileExpression(rule, ko)
 		w.lnPrint("return true")
-		if !expression.GetType().IsSafe() {
-			ko.restore()
+		if ko.used {
+			ko.restore(cko.pos, cko.thPos)
 			w.lnPrint("return false")
 		}
 		w.indent--
@@ -1451,16 +1523,26 @@ func (p *%v) Init() {
 	}
 }
 
+type chgFlags struct {
+	pos, thPos bool
+}
 
 type writer struct {
-	*os.File
+	io.Writer
 	indent    int
 	hasCommit bool
 	nLabels   int
+	dryRun bool
+	savedIndent int
+	saveFlags []saveFlags
 }
 
-func newWriter(out *os.File) *writer {
-	return &writer{File: out, indent: 2}
+type saveFlags struct {
+	pos, thPos bool
+}
+
+func newWriter(out io.Writer) *writer {
+	return &writer{Writer: out, indent: 2}
 }
 
 func (w *writer) begin() {
@@ -1473,6 +1555,16 @@ func (w *writer) end() {
 	w.lnPrint("}")
 }
 
+func (w *writer) setDry(on bool) {
+	w.dryRun = on
+	if on {
+		w.savedIndent = w.indent
+	} else {
+		w.indent = w.savedIndent
+		w.nLabels = 0
+	}
+}
+
 type label struct {
 	id, sid int
 	*writer
@@ -1483,6 +1575,9 @@ type label struct {
 func (w *writer) newLabel() *label {
 	i := w.nLabels
 	w.nLabels++
+	if w.dryRun {
+		w.saveFlags = append(w.saveFlags, saveFlags{})
+	}
 	return &label{id: i, sid: i, writer: w}
 }
 
@@ -1498,37 +1593,55 @@ func (w *label) jump() {
 }
 
 func (w *label) saveBlock() {
-	w.begin()
-	w.save()
-	w.savedBlockOpen = true
+	save := w.saveFlags[w.id]
+	if save.pos || save.thPos {
+		w.begin()
+		w.save()
+		w.savedBlockOpen = true
+	}
 }
 func (w *label) save() {
-	if w.hasCommit {
+	save := w.saveFlags[w.id]
+	switch {
+	case save.pos && save.thPos:
 		w.lnPrint("position%d, thunkPosition%d := position, thunkPosition", w.sid, w.sid)
-	} else {
+	case !save.pos && save.thPos:
+		w.lnPrint("thunkPosition%d := thunkPosition", w.sid)
+	case save.pos:
 		w.lnPrint("position%d := position", w.sid)
 	}
 }
 
-func (w *label) restore() {
-	w.lrestore(w)
+func (w *label) unsafe() bool {
+	save := w.saveFlags[w.id]
+	return save.pos || save.thPos
 }
-func (w *label) lrestore(label *label) {
+
+func (w *label) restore(savePos, saveThPos bool) {
+	w.lrestore(w, savePos, saveThPos)
+}
+func (w *label) lrestore(label *label, savePos, saveThPos bool) {
 	if label != nil {
-		if !label.used {
-			if w.hasCommit {
-				w.lnPrint("_, _ = position%d, thunkPosition%d", w.sid, w.sid)
-			} else {
-				w.lnPrint("_ = position%d", w.sid)
-			}
-			return
+		if label.used {
+			label.label()
 		}
-		label.label()
 	}
-	if w.hasCommit {
+	switch {
+	case savePos && saveThPos:
 		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", w.sid, w.sid)
-	} else {
+	case !savePos && saveThPos:
+		w.lnPrint("thunkPosition = thunkPosition%d", w.sid)
+	case savePos:
 		w.lnPrint("position = position%d", w.sid)
+	}
+	if w.dryRun {
+		save := &w.saveFlags[w.id]
+		if !save.pos {
+			save.pos = savePos
+		}
+		if !save.thPos {
+			save.thPos = saveThPos
+		}
 	}
 	if w.savedBlockOpen {
 		w.end()
@@ -1537,6 +1650,10 @@ func (w *label) lrestore(label *label) {
 }
 
 func (w *label) cJump(jumpIfTrue bool, format string, a ...interface{}) {
+	w.used = true
+	if w.dryRun {
+		return
+	}
 	if jumpIfTrue {
 		format = "if " + format
 	} else {
@@ -1546,10 +1663,12 @@ func (w *label) cJump(jumpIfTrue bool, format string, a ...interface{}) {
 	fmt.Fprint(w, " {")
 	w.lnPrint("\tgoto l%d", w.id)
 	w.lnPrint("}")
-	w.used = true
 }
 
 func (w *writer) lnPrint(format string, a ...interface{}) {
+	if w.dryRun {
+		return
+	}
 	s := "\n"
 	for i := 0; i < w.indent; i++ {
 		s += "\t"
