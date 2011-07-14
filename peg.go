@@ -160,6 +160,21 @@ func (a *action) String() string {
 	return a.text
 }
 
+func (a *action) Print(w io.Writer) {
+	vmap := a.rule.variables
+	ind := "\n\t\t\t"
+	off := 0
+	for _, v := range vmap {
+		off--
+		v.offset = off
+		fmt.Fprintf(w, ind+"%s := yyval[yyp%d]", v.name, v.offset)
+	}
+	fmt.Fprintf(w, ind+"%v", a)
+	for _, v := range vmap {
+		fmt.Fprintf(w, ind+"yyval[yyp%d] = %s", v.offset, v.name)
+	}
+}
+
 func (a *action) GetId() int {
 	return a.id
 }
@@ -942,20 +957,7 @@ func (p *%v) Init() {
 			a := i.Value.(Action)
 			w.lnPrint("/* %v %v */", a.GetId(), a.GetRule())
 			w.lnPrint("func(yytext string, _ int) {")
-			w.indent++
-
-			vmap := a.(*action).rule.variables
-			off := 0
-			for _, v := range vmap {
-				off--
-				v.offset = off
-				w.lnPrint("%s := yyval[yyp%d]", v.name, v.offset)
-			}
-			w.lnPrint("%v", a)
-			for _, v := range vmap {
-				w.lnPrint("yyval[yyp%d] = %s", v.offset, v.name)
-			}
-			w.indent--
+			a.(*action).Print(w)
 			w.lnPrint("},")
 			nact++
 		}
