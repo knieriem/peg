@@ -313,7 +313,7 @@ type Tree struct {
 	headers    []string
 	trailers   []string
 	list.List
-	actions         list.List
+	Actions         []*action
 	classes         map[string]*characterClass
 	defines         map[string]string
 	switchExcl      map[string]bool
@@ -474,9 +474,9 @@ func (t *Tree) AddAction(text string) {
 			b[i], b[i+1] = 'y', 'y'
 		}
 	}
-	a := &action{text: string(b), id: t.actions.Len(), rule: t.currentRule()}
+	a := &action{text: string(b), id: len(t.Actions), rule: t.currentRule()}
 	t.currentRule().hasActions = true
-	t.actions.PushBack(a)
+	t.Actions = append(t.Actions, a)
 	t.push(a)
 }
 func (t *Tree) Define(name, text string) {
@@ -935,10 +935,10 @@ func (p *%v) Init() {
 			yystype, yystype)
 	}
 
-	hasActions := t.actions.Len() != 0
+	hasActions := t.Actions != nil
 	if hasActions {
 		bits := 0
-		for length := t.actions.Len(); length != 0; length >>= 1 {
+		for length := len(t.Actions); length != 0; length >>= 1 {
 			bits++
 		}
 		switch {
@@ -952,16 +952,14 @@ func (p *%v) Init() {
 			bits = 64
 		}
 		print("\n\tactions := [...]func(string, int){")
-		nact := 0
-		for i := t.actions.Front(); i != nil; i = i.Next() {
-			a := i.Value.(Action)
+		for _, a := range t.Actions {
 			w.lnPrint("/* %v %v */", a.GetId(), a.GetRule())
 			w.lnPrint("func(yytext string, _ int) {")
-			a.(*action).Print(w)
+			a.Print(w)
 			w.lnPrint("},")
-			nact++
 		}
 		if nvar > 0 {
+			nact := len(t.Actions)
 			print(`
 `+`		/* %d yyPush */
 `+`		func(_ string, count int) {
