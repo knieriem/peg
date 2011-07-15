@@ -9,6 +9,7 @@ import (
 	"container/list"
 	"os"
 	"io"
+	"exp/template"
 )
 
 type Type uint8
@@ -87,7 +88,7 @@ func (r *rule) String() string {
 	return r.name
 }
 
-func (r *rule) goString() string {
+func (r *rule) GoString() string {
 	b := []byte(r.String())
 	for i := 0; i < len(b); i++ {
 		if b[i] == '-' {
@@ -160,19 +161,20 @@ func (a *action) String() string {
 	return a.text
 }
 
-func (a *action) Print(w io.Writer) {
+func (a *action) Code() (s string) {
 	vmap := a.rule.variables
-	ind := "\n\t\t\t"
+	ind := "\t\t\t"
 	off := 0
 	for _, v := range vmap {
 		off--
 		v.offset = off
-		fmt.Fprintf(w, ind+"%s := yyval[yyp%d]", v.name, v.offset)
+		s += fmt.Sprintf(ind+"%s := yyval[yyp%d]\n", v.name, v.offset)
 	}
-	fmt.Fprintf(w, ind+"%v", a)
+	s += fmt.Sprintf(ind+"%v\n", a)
 	for _, v := range vmap {
-		fmt.Fprintf(w, ind+"yyval[yyp%d] = %s", v.offset, v.name)
+		s += fmt.Sprintf(ind+"yyval[yyp%d] = %s\n", v.offset, v.name)
 	}
+	return
 }
 
 func (a *action) GetId() int {
@@ -310,11 +312,11 @@ type Tree struct {
 	rulesCount map[string]uint
 	ruleId     int
 	varp       *variable
-	headers    []string
+	Headers    []string
 	trailers   []string
 	list.List
 	Actions         []*action
-	classes         map[string]*characterClass
+	Classes         map[string]*characterClass
 	defines         map[string]string
 	switchExcl      map[string]bool
 	stack           [1024]Node
@@ -325,7 +327,7 @@ type Tree struct {
 func New(inline, _switch bool) *Tree {
 	return &Tree{rules: make(map[string]*rule),
 		rulesCount: make(map[string]uint),
-		classes:    make(map[string]*characterClass),
+		Classes:    make(map[string]*characterClass),
 		defines: map[string]string{
 			"package":   "",
 			"Peg":       "yyParser",
@@ -364,7 +366,7 @@ func (t *Tree) AddExpression() {
 }
 
 func (t *Tree) AddHeader(text string) {
-	t.headers = append(t.headers, text)
+	t.Headers = append(t.Headers, text)
 }
 
 func (t *Tree) AddTrailer(text string) {
@@ -404,9 +406,9 @@ func (t *Tree) AddString(text string) {
 }
 func (t *Tree) AddClass(text string) {
 	t.push(&token{Type: TypeClass, string: text})
-	if c, ok := t.classes[text]; !ok {
+	if c, ok := t.Classes[text]; !ok {
 		c = new(characterClass)
-		t.classes[text] = c
+		t.Classes[text] = c
 		inverse := false
 		if text[0] == '^' {
 			inverse = true
@@ -710,7 +712,7 @@ func (t *Tree) Compile(file string) {
 				}
 				class.add(b)
 			case TypeClass:
-				consumes, class = true, t.classes[node.String()]
+				consumes, class = true, t.Classes[node.String()]
 			case TypeAlternate:
 				consumes, peek, class = true, true, new(characterClass)
 				alternate := node.(List)
@@ -851,286 +853,13 @@ func (t *Tree) Compile(file string) {
 		}
 	}
 
-	for _, s := range t.headers {
-		print("%s", s)
-	}
-
-	if p := t.defines["package"]; p != "" {
-		print(`package %v
-
-import (
-	"fmt"
-	"peg"
-)`, p)
-	}
-	print("\nconst (\n")
-	for el := t.Front(); el != nil; el = el.Next() {
-		node := el.Value.(Node)
-		if node.GetType() != TypeRule {
-			continue
-		}
-		r := node.(*rule)
-		if r.GetId() == 0 {
-			print("\trule%s\t= iota\n", r.goString())
-		} else {
-			print("\trule%s\n", r.goString())
-		}
-	}
-	pegname := t.defines["Peg"]
-	print(
-		`)
-
-type %v struct {%v
-	Buffer string
-	Min, Max int
-	rules [%d]func() bool
-	ResetBuffer	func(string) string
-}
-
-func (p *%v) Parse(ruleId int) bool {
-	if p.rules[ruleId]() {
-		return true
-	}
-	return false
-}
-func (p *%v) PrintError() {
-	line := 1
-	character := 0
-	for i, c := range p.Buffer[0:] {
-		if c == '\n' {
-			line++
-			character = 0
-		} else {
-			character++
-		}
-		if i == p.Min {
-			if p.Min != p.Max {
-				fmt.Printf("parse error after line %%v character %%v\n", line, character)
-			} else {
-				break
-			}
-		} else if i == p.Max {
-			break
-		}
-	}
-	fmt.Printf("parse error: unexpected ")
-	if p.Max >= len(p.Buffer) {
-		fmt.Printf("end of file found\n")
-	} else {
-		fmt.Printf("'%%c' at line %%v character %%v\n", p.Buffer[p.Max], line, character)
-	}
-}
-func (p *%v) Init() {
-	var position int`,
-		pegname, t.defines["userstate"], len(t.rules), pegname, pegname, pegname)
-
-	if nvar > 0 {
-		yystype := t.defines["yystype"]
-		print(
-			`
-`+`	var yyp int
-`+`	var yy %s
-`+`	var yyval = make([]%s, 200)
-`,
-			yystype, yystype)
-	}
-
-	hasActions := t.Actions != nil
-	if hasActions {
-		bits := 0
-		for length := len(t.Actions); length != 0; length >>= 1 {
-			bits++
-		}
-		switch {
-		case bits < 8:
-			bits = 8
-		case bits < 16:
-			bits = 16
-		case bits < 32:
-			bits = 32
-		case bits < 64:
-			bits = 64
-		}
-		print("\n\tactions := [...]func(string, int){")
-		for _, a := range t.Actions {
-			w.lnPrint("/* %v %v */", a.GetId(), a.GetRule())
-			w.lnPrint("func(yytext string, _ int) {")
-			a.Print(w)
-			w.lnPrint("},")
-		}
-		if nvar > 0 {
-			nact := len(t.Actions)
-			print(`
-`+`		/* %d yyPush */
-`+`		func(_ string, count int) {
-`+`			yyp += count
-`+`			if yyp >= len(yyval) {
-`+`				s := make([]%s, cap(yyval)+200)
-`+`				copy(s, yyval)
-`+`				yyval = s
-`+`			}
-`+`		},
-`+`		/* %d yyPop */
-`+`		func(_ string, count int) {
-`+`			yyp -= count
-`+`		},
-`+`		/* %d yySet */
-`+`		func(_ string, count int) {
-`+`			yyval[yyp+count] = yy
-`+`		},
-`+`	}
-`+`	const (
-`+`		yyPush = %d+iota
-`+`		yyPop
-`+`		yySet
-`+`	)
-`,
-				nact, t.defines["yystype"], nact+1, nact+2, nact)
-		} else {
-			print("\t}\n")
-		}
-
-		print(
-			`
-`+`	var thunkPosition, begin, end int
-`+`	thunks := make([]struct {action uint%d; begin, end int}, 32)
-`+`	doarg := func(action uint%d, arg int) {
-`+`		if thunkPosition == len(thunks) {
-`+`			newThunks := make([]struct {action uint%d; begin, end int}, 2 * len(thunks))
-`+`			copy(newThunks, thunks)
-`+`			thunks = newThunks
-`+`		}
-`+`		thunks[thunkPosition].action = action
-`+`		if arg != 0 {
-`+`			thunks[thunkPosition].begin = arg // use begin to store an argument
-`+`		} else {
-`+`			thunks[thunkPosition].begin = begin
-`+`		}
-`+`		thunks[thunkPosition].end = end
-`+`		thunkPosition++
-`+`	}
-`+`	do := func(action uint%d) {
-`+`		doarg(action, 0)
-`+`	}`, bits, bits, bits, bits)
-
-		print(
-			`
-`+`	p.ResetBuffer = func(s string) (old string) {
-`+`		if p.Max < len(p.Buffer) {
-`+`			old = p.Buffer[p.Max:]
-`+`		}
-`+`		p.Buffer = s
-`+`		thunkPosition = 0
-`+`		position = 0
-`+`		p.Min = 0
-`+`		p.Max = 0
-`+`		return
-`+`	}
-`)
-		if counts[TypeCommit] > 0 {
-			print(
-				`
-`+`	commit := func(thunkPosition0 int) bool {
-`+`		if thunkPosition0 == 0 {
-`+`			for i := 0; i < thunkPosition; i++ {
-`+`				b := thunks[i].begin
-`+`				e := thunks[i].end
-`+`				s := ""
-`+`				if b>=0 && e<=len(p.Buffer) && b<=e {
-`+`					s = p.Buffer[b:e]
-`+`				}
-`+`				magic := b
-`+`				actions[thunks[i].action](s, magic)
-`+`			}
-`+`			p.Min = position
-`+`			thunkPosition = 0
-`+`			return true
-`+`		}
-`+`		return false
-`+`	}`)
-		}
-		w.hasCommit = true
-	}
-
-	if counts[TypeDot] > 0 {
-		print(
-			`
-`+`	matchDot := func() bool {
-`+`		if position < len(p.Buffer) {
-`+`			position++
-`+`			return true
-`+`		} else if position >= p.Max {
-`+`			p.Max = position
-`+`		}
-`+`		return false
-`+`	}
-`+`	peekDot := func() bool {
-`+`		return position < len(p.Buffer)
-`+`	}
-`+`	_ = peekDot
-`)
-	}
-	if counts[TypeCharacter] > 0 {
-		print(
-			`
-`+`	matchChar := func(c byte) bool {
-`+`		if (position < len(p.Buffer)) && (p.Buffer[position] == c) {
-`+`			position++
-`+`			return true
-`+`		} else if position >= p.Max {
-`+`			p.Max = position
-`+`		}
-`+`		return false
-`+`	}
-`+`	peekChar := func(c byte) bool {
-`+`		return position < len(p.Buffer) && p.Buffer[position] == c
-`+`	}
-`+`	_ = peekChar
-`)
-	}
-	if counts[TypeString] > 0 {
-		print(
-			`
-`+`	matchString := func(s string) bool {
-`+`		length := len(s)
-`+`		next := position + length
-`+`		if (next <= len(p.Buffer)) && (p.Buffer[position:next] == s) {
-`+`			position = next
-`+`			return true
-`+`		} else if position >= p.Max {
-`+`			p.Max = position
-`+`		}
-`+`		return false
-`+`	}`)
-	}
-
 	classes := make(map[string]uint)
-	if len(t.classes) != 0 {
-		print("\n\tclasses := [...][32]uint8{\n")
+	if len(t.Classes) != 0 {
 		var index uint
-		for className, classBitmap := range t.classes {
+		for className := range t.Classes {
 			classes[className] = index
-			print("\t\t{")
-			sep := ""
-			for _, b := range *classBitmap {
-				print("%s%d", sep, b)
-				sep = ", "
-			}
-			print("},\n")
 			index++
 		}
-		print(
-			`	}
-`+`	matchClass := func(class uint) bool {
-`+`		if (position < len(p.Buffer)) &&
-`+`			((classes[class][p.Buffer[position]>>3] & (1 << (p.Buffer[position] & 7))) != 0) {
-`+`			position++
-`+`			return true
-`+`		} else if position >= p.Max {
-`+`			p.Max = position
-`+`		}
-`+`		return false
-`+`	}`)
 	}
 
 	var printRule func(node Node)
@@ -1226,8 +955,10 @@ func (p *%v) Init() {
 		switch node.GetType() {
 		case TypeDot:
 			label.cJump(jumpIfTrue, "peekDot()")
+			stats.Peek.Dot++
 		case TypeCharacter:
 			label.cJump(jumpIfTrue, "peekChar('%v')", node)
+			stats.Peek.Char++
 		case TypePredicate:
 			label.cJump(jumpIfTrue, "(%v)", node)
 		default:
@@ -1248,6 +979,7 @@ func (p *%v) Init() {
 			fmt.Fprintf(os.Stderr, "internal error #1 (%v)\n", node)
 		case TypeDot:
 			ko.cJump(false, "matchDot()")
+			stats.Match.Dot++
 			chgok.pos = true
 		case TypeName:
 			varp := node.(*name).varp
@@ -1256,7 +988,7 @@ func (p *%v) Init() {
 			if t.inline && t.rulesCount[name] == 1 {
 				chgko, chgok = compileExpression(rule, ko)
 			} else {
-				ko.cJump(false, "p.rules[rule%s]()", rule.goString())
+				ko.cJump(false, "p.rules[rule%s]()", rule.GoString())
 				if len(rule.variables) != 0 || rule.hasActions {
 					chgok.thPos = true
 				}
@@ -1268,6 +1000,7 @@ func (p *%v) Init() {
 			}
 		case TypeCharacter:
 			ko.cJump(false, "matchChar('%v')", node)
+			stats.Match.Char++
 			chgok.pos = true
 		case TypeString:
 			s := node.String()
@@ -1275,6 +1008,7 @@ func (p *%v) Init() {
 				ko.cJump(false, "peekDot()")
 			} else {
 				ko.cJump(false, "matchString(\"%s\")", s)
+				stats.Match.String++
 			}
 			chgok.pos = true
 		case TypeClass:
@@ -1289,11 +1023,11 @@ func (p *%v) Init() {
 			ko.cJump(false, "(commit(thunkPosition0))")
 			chgko.thPos = true
 		case TypeBegin:
-			if hasActions {
+			if t.Actions != nil {
 				w.lnPrint("begin = position")
 			}
 		case TypeEnd:
-			if hasActions {
+			if t.Actions != nil {
 				w.lnPrint("end = position")
 			}
 		case TypeAlternate:
@@ -1483,8 +1217,47 @@ func (p *%v) Init() {
 	}
 	w.setDry(false)
 
+	tpl := template.New("parser")
+	tpl.Funcs(template.FuncMap{
+		"len":      itemLength,
+		"def":      func(key string) string { return t.defines[key] },
+		"stats":    func() *statValues { return &stats },
+		"nvar":     func() int { return nvar },
+		"numRules": func() int { return len(t.rules) },
+		"sortedRules": func() (r []*rule) {
+			for el := t.Front(); el != nil; el = el.Next() {
+				node := el.Value.(Node)
+				if node.GetType() != TypeRule {
+					continue
+				}
+				r = append(r, node.(*rule))
+			}
+			return
+		},
+		"hasCommit": func() bool { return counts[TypeCommit] > 0 },
+		"actionBits": func() (bits int) {
+			for n := len(t.Actions); n != 0; n >>= 1 {
+				bits++
+			}
+			switch {
+			case bits < 8:
+				bits = 8
+			case bits < 16:
+				bits = 16
+			case bits < 32:
+				bits = 32
+			case bits < 64:
+				bits = 64
+			}
+			return
+		},
+	})
+	tpl.MustParse(parserTemplate)
+	if err := tpl.Execute(w, t); err != nil {
+		log.Fatal(err)
+	}
+
 	/* now for the real compile pass */
-	print("\n\tp.rules = [...]func() bool{")
 	for element := t.Front(); element != nil; element = element.Next() {
 		node := element.Value.(Node)
 		if node.GetType() != TypeRule {
@@ -1535,7 +1308,6 @@ type chgFlags struct {
 type writer struct {
 	io.Writer
 	indent    int
-	hasCommit bool
 	nLabels   int
 	dryRun bool
 	savedIndent int
@@ -1680,3 +1452,10 @@ func (w *writer) lnPrint(format string, a ...interface{}) {
 	}
 	fmt.Fprintf(w, s+format, a...)
 }
+
+type statValues struct {
+	Peek, Match struct {
+		Char, Dot, String int
+	}
+}
+var stats statValues

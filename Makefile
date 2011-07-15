@@ -13,6 +13,7 @@ peg: main.$(O)
 
 PKGFILES=\
 	peg.go\
+	template.go\
 
 CMDFILES=\
 	main.go\
