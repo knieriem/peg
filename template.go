@@ -229,7 +229,6 @@ func (p *{{def "Peg"}}) Init() {
 	p.rules = [...]func() bool{
 `, "\\\n", "", -1)
 
-
 // used as template function `len'
 func itemLength(item interface{}) (n int, err error) {
 	v := reflect.ValueOf(item)

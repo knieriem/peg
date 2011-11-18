@@ -508,18 +508,18 @@ func (t *Tree) addList(listType Type) {
 	t.push(l)
 }
 func (t *Tree) AddAlternate() { t.addList(TypeAlternate) }
-func (t *Tree) AddSequence() { t.addList(TypeSequence) }
+func (t *Tree) AddSequence()  { t.addList(TypeSequence) }
 
 func (t *Tree) addFix(fixType Type) {
 	n := &nodeList{Type: fixType}
 	n.PushBack(t.pop())
 	t.push(n)
 }
-func (t *Tree) AddPeekFor()         { t.addFix(TypePeekFor) }
-func (t *Tree) AddPeekNot()         { t.addFix(TypePeekNot) }
-func (t *Tree) AddQuery()           { t.addFix(TypeQuery) }
-func (t *Tree) AddStar()            { t.addFix(TypeStar) }
-func (t *Tree) AddPlus()            { t.addFix(TypePlus) }
+func (t *Tree) AddPeekFor() { t.addFix(TypePeekFor) }
+func (t *Tree) AddPeekNot() { t.addFix(TypePeekNot) }
+func (t *Tree) AddQuery()   { t.addFix(TypeQuery) }
+func (t *Tree) AddStar()    { t.addFix(TypeStar) }
+func (t *Tree) AddPlus()    { t.addFix(TypePlus) }
 
 func join(tasks []func()) {
 	length := len(tasks)
@@ -759,7 +759,7 @@ func (t *Tree) Compile(file string) {
 						} else {
 							class := &token{Type: TypeClass, string: properties[c].class.String(), class: properties[c].class}
 
-							sequence, predicate, length := 
+							sequence, predicate, length :=
 								&nodeList{Type: TypeSequence}, &nodeList{Type: TypePeekFor}, properties[c].class.len()
 							predicate.PushBack(class)
 							sequence.PushBack(predicate)
@@ -796,7 +796,7 @@ func (t *Tree) Compile(file string) {
 						peek  bool
 						class *characterClass
 					}, sequence.Len()), 0, sequence.Front()
-				for ; !consumes && element != nil; element, c = element.Next(), c + 1 {
+				for ; !consumes && element != nil; element, c = element.Next(), c+1 {
 					consumes, meof, classes[c].peek, classes[c].class = optimizeAlternates(element.Value.(Node))
 					eof, peek = eof || meof, peek || classes[c].peek
 				}
@@ -828,7 +828,7 @@ func (t *Tree) Compile(file string) {
 				consumes, eof, peek, class = optimizeAlternates(node.(List).Front().Value.(Node))
 			case TypeAction, TypeNil:
 				class = new(characterClass)
- 			}
+			}
 			return
 		}
 		for element := t.Front(); element != nil; element = element.Next() {
@@ -969,10 +969,18 @@ func (t *Tree) Compile(file string) {
 	}
 	compile = func(node Node, ko *label) (chgko, chgok chgFlags) {
 		updateFlags := func(cko, cok chgFlags) (chgFlags, chgFlags) {
-			if cko.pos { chgko.pos = true }
-			if cko.thPos { chgko.thPos = true }
-			if cok.pos { chgok.pos = true }
-			if cok.thPos { chgok.thPos = true }
+			if cko.pos {
+				chgko.pos = true
+			}
+			if cko.thPos {
+				chgko.thPos = true
+			}
+			if cok.pos {
+				chgok.pos = true
+			}
+			if cok.thPos {
+				chgok.thPos = true
+			}
 			return cko, cok
 		}
 		switch node.GetType() {
@@ -993,7 +1001,7 @@ func (t *Tree) Compile(file string) {
 				if len(rule.variables) != 0 || rule.hasActions {
 					chgok.thPos = true
 				}
-				chgok.pos = true	// safe guess
+				chgok.pos = true // safe guess
 			}
 			if varp != nil {
 				w.lnPrint("doarg(yySet, %d)", varp.offset)
@@ -1122,8 +1130,12 @@ func (t *Tree) Compile(file string) {
 				updateFlags(compile(element.Value.(Node), ko))
 			}
 			if node.(List).Len() > 1 {
-				if chgok.pos { chgko.pos = true }
-				if chgok.thPos { chgko.thPos = true}
+				if chgok.pos {
+					chgko.pos = true
+				}
+				if chgok.thPos {
+					chgko.thPos = true
+				}
 			}
 		case TypePeekFor:
 			sub := node.(List).Front().Value.(Node)
@@ -1310,11 +1322,11 @@ type chgFlags struct {
 
 type writer struct {
 	io.Writer
-	indent    int
-	nLabels   int
-	dryRun bool
+	indent      int
+	nLabels     int
+	dryRun      bool
 	savedIndent int
-	saveFlags []saveFlags
+	saveFlags   []saveFlags
 }
 
 type saveFlags struct {
@@ -1348,7 +1360,7 @@ func (w *writer) setDry(on bool) {
 type label struct {
 	id, sid int
 	*writer
-	used bool
+	used           bool
 	savedBlockOpen bool
 }
 
@@ -1461,4 +1473,5 @@ type statValues struct {
 		Char, Dot, String int
 	}
 }
+
 var stats statValues
