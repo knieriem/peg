@@ -168,7 +168,9 @@ func (a *action) Code() (s string) {
 	off := 0
 	for _, v := range vmap {
 		off--
-		v.offset = off
+		if v.offset == 0 {
+			v.offset = off
+		}
 		s += fmt.Sprintf(ind+"%s := yyval[yyp%d]\n", v.name, v.offset)
 	}
 	s += fmt.Sprintf(ind+"%v\n", a)
