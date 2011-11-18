@@ -1112,6 +1112,7 @@ func (t *Tree) Compile(file string) {
 				print(":")
 				w.indent++
 				updateFlags(compile(sequence.Value.(Node), done))
+				w.lnPrint("break")
 				w.indent--
 			}
 			w.lnPrint("default:")
