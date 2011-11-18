@@ -863,7 +863,9 @@ func (t *Tree) Compile(file string) {
 				}
 			case TypePeekNot:
 				peek = true
-				_, eof, _, class = optimizeAlternates(node.(List).Front().Value.(Node))
+				// might be buggy
+				_, eof, _, _ = optimizeAlternates(node.(List).Front().Value.(Node))
+				class = new(characterClass)
 				eof = !eof
 				class = class.copy()
 				class.complement()
