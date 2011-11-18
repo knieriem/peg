@@ -282,7 +282,12 @@ func (c *characterClass) String() (class string) {
 		case '-':
 			s = `\-` /* - */
 		default:
-			s = fmt.Sprintf("%c", c)
+			switch {
+			case c >= 0 && c < 32 || c >= 0x80:
+				s = fmt.Sprintf("\\%03o", c)
+			default:
+				s = fmt.Sprintf("%c", c)
+			}
 		}
 		return s
 	}
@@ -406,11 +411,26 @@ var dot *token = &token{Type: TypeDot, string: "."}
 func (t *Tree) AddDot() { t.push(dot) }
 func (t *Tree) AddString(text string) {
 	length := len(text)
-	if (length == 1) || ((length == 2) && (text[0] == '\\')) {
-		t.push(&token{Type: TypeCharacter, string: text})
-	} else {
+s:
+	switch {
+	case length == 1:
+	case length > 1:
+		if text[0] == '\\' {
+			switch length {
+			case 2:
+				break s
+			case 4:
+				if text[1] >= '0' && text[1] <= '9' {
+					break s
+				}
+			}
+		}
+		fallthrough
+	default:
 		t.push(&token{Type: TypeString, string: text})
+		return
 	}
+	t.push(&token{Type: TypeCharacter, string: text})
 }
 func (t *Tree) AddClass(text string) {
 	t.push(&token{Type: TypeClass, string: text})
@@ -716,6 +736,10 @@ func (t *Tree) Compile(file string) {
 						b = '\t' /* ht */
 					case 'v':
 						b = '\v' /* vt */
+					default:
+						if s := node.String(); len(s) == 4 {
+							b = (s[1]-'0')*64 + (s[2]-'0')*8 + s[3] - '0'
+						}
 					}
 				}
 				class.add(b)
@@ -1010,14 +1034,11 @@ func (t *Tree) Compile(file string) {
 			stats.Match.Char++
 			chgok.pos = true
 		case TypeString:
-			s := node.String()
-			if s == "" {
-				ko.cJump(false, "peekDot()")
-			} else {
+			if s := node.String(); s != "" {
 				ko.cJump(false, "matchString(\"%s\")", s)
 				stats.Match.String++
+				chgok.pos = true
 			}
-			chgok.pos = true
 		case TypeClass:
 			ko.cJump(false, "matchClass(%d)", t.Classes[node.String()].Index)
 			chgok.pos = true
@@ -1103,7 +1124,12 @@ func (t *Tree) Compile(file string) {
 						case '\'':
 							s = `\'` /* ' */
 						default:
-							s = fmt.Sprintf("%c", d)
+							switch {
+							case d >= 0 && d < 32 || d >= 0x80:
+								s = fmt.Sprintf("\\%03o", d)
+							default:
+								s = fmt.Sprintf("%c", d)
+							}
 						}
 						print(" '%s'", s)
 						comma = true
