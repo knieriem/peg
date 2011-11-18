@@ -211,7 +211,7 @@ func (p *{{def "Peg"}}) Init() {
 {{end}}
 {{	if len $.Classes}}\
 	classes := [...][32]uint8{
-{{range $bitmap := $.Classes}}		{{"{"}}{{range $i, $b := $bitmap}}{{if $i}}, {{end}}{{$b | printf "%d"}}{{end}}{{"}"}},
+{{range $.Classes}}	{{.Index}}:	{{"{"}}{{range $i, $b := .Class}}{{if $i}}, {{end}}{{$b | printf "%d"}}{{end}}{{"}"}},
 {{end}}\
 	}
 	matchClass := func(class uint) bool {

@@ -307,6 +307,11 @@ func (c *characterClass) String() (class string) {
 	return
 }
 
+type classEntry struct {
+	Index int
+	Class *characterClass
+}
+
 /* A tree data structure into which a PEG can be parsed. */
 type Tree struct {
 	rules      map[string]*rule
@@ -317,7 +322,7 @@ type Tree struct {
 	trailers   []string
 	list.List
 	Actions         []*action
-	Classes         map[string]*characterClass
+	Classes         map[string]classEntry
 	defines         map[string]string
 	switchExcl      map[string]bool
 	stack           [1024]Node
@@ -328,7 +333,7 @@ type Tree struct {
 func New(inline, _switch bool) *Tree {
 	return &Tree{rules: make(map[string]*rule),
 		rulesCount: make(map[string]uint),
-		Classes:    make(map[string]*characterClass),
+		Classes:    make(map[string]classEntry),
 		defines: map[string]string{
 			"package":   "",
 			"Peg":       "yyParser",
@@ -407,9 +412,9 @@ func (t *Tree) AddString(text string) {
 }
 func (t *Tree) AddClass(text string) {
 	t.push(&token{Type: TypeClass, string: text})
-	if c, ok := t.Classes[text]; !ok {
-		c = new(characterClass)
-		t.Classes[text] = c
+	if _, ok := t.Classes[text]; !ok {
+		c := new(characterClass)
+		t.Classes[text] = classEntry{len(t.Classes), c}
 		inverse := false
 		if text[0] == '^' {
 			inverse = true
@@ -713,7 +718,7 @@ func (t *Tree) Compile(file string) {
 				}
 				class.add(b)
 			case TypeClass:
-				consumes, class = true, t.Classes[node.String()]
+				consumes, class = true, t.Classes[node.String()].Class
 			case TypeAlternate:
 				consumes, peek, class = true, true, new(characterClass)
 				alternate := node.(List)
@@ -851,15 +856,6 @@ func (t *Tree) Compile(file string) {
 	print := func(format string, a ...interface{}) {
 		if !w.dryRun {
 			fmt.Fprintf(w, format, a...)
-		}
-	}
-
-	classes := make(map[string]uint)
-	if len(t.Classes) != 0 {
-		var index uint
-		for className := range t.Classes {
-			classes[className] = index
-			index++
 		}
 	}
 
@@ -1021,7 +1017,7 @@ func (t *Tree) Compile(file string) {
 			}
 			chgok.pos = true
 		case TypeClass:
-			ko.cJump(false, "matchClass(%d)", classes[node.String()])
+			ko.cJump(false, "matchClass(%d)", t.Classes[node.String()].Index)
 			chgok.pos = true
 		case TypePredicate:
 			ko.cJump(false, "(%v)", node)
