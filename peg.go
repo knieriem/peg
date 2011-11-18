@@ -5,11 +5,12 @@
 package peg
 
 import (
-	"fmt"
 	"container/list"
-	"os"
+	"fmt"
 	"io"
-	"exp/template"
+	"log"
+	"os"
+	"text/template"
 )
 
 type Type uint8
@@ -1252,7 +1253,9 @@ func (t *Tree) Compile(file string) {
 			return
 		},
 	})
-	tpl.MustParse(parserTemplate)
+	if _, err := tpl.Parse(parserTemplate); err != nil {
+		log.Fatal(err)
+	}
 	if err := tpl.Execute(w, t); err != nil {
 		log.Fatal(err)
 	}

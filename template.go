@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"os"
 )
 
 var parserTemplate = strings.Replace(`\
@@ -232,7 +231,7 @@ func (p *{{def "Peg"}}) Init() {
 
 
 // used as template function `len'
-func itemLength(item interface{}) (n int, err os.Error) {
+func itemLength(item interface{}) (n int, err error) {
 	v := reflect.ValueOf(item)
 	switch v.Kind() {
 	case reflect.Array, reflect.Slice, reflect.Map, reflect.String:
