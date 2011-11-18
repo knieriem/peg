@@ -558,7 +558,10 @@ func join(tasks []func()) {
 	}
 }
 
-var emptyString = new(characterClass)
+var anyChar = func() (c *characterClass) {
+	c = new(characterClass)
+	return
+}()
 
 func (t *Tree) Compile(file string) {
 	counts := [TypeLast]uint{}
@@ -700,6 +703,9 @@ func (t *Tree) Compile(file string) {
 				cache := &cache[rule.GetId()]
 				if cache.reached {
 					consumes, eof, peek, class = cache.consumes, cache.eof, cache.peek, cache.class
+					if class == nil {
+						class = anyChar
+					}
 					return
 				}
 				cache.reached = true
@@ -714,7 +720,7 @@ func (t *Tree) Compile(file string) {
 				}
 			case TypeString, TypeCharacter:
 				if node.String() == "" {
-					consumes, class = true, emptyString
+					consumes, class = true, anyChar
 					return
 				}
 				consumes, class = true, new(characterClass)
@@ -753,22 +759,22 @@ func (t *Tree) Compile(file string) {
 						intersects bool
 						class      *characterClass
 					}, alternate.Len()), 0
+				empty := false
 				for element := alternate.Front(); element != nil; element = element.Next() {
 					mconsumes, meof, mpeek, properties[c].class = optimizeAlternates(element.Value.(Node))
-					if c+1 == len(properties) && properties[c].class == emptyString {
-						properties = properties[:c]
-						break
-					}
 					consumes, eof, peek = consumes && mconsumes, eof || meof, peek && mpeek
 					if properties[c].class != nil {
 						class.union(properties[c].class)
+						if properties[c].class.len() == 0 {
+							empty = true
+						}
 					}
 					c++
 				}
 				if eof {
 					break
 				}
-				intersections := 2
+				intersections := 0
 			compare:
 				for ai, a := range properties[0 : len(properties)-1] {
 					for _, b := range properties[ai+1:] {
@@ -781,7 +787,12 @@ func (t *Tree) Compile(file string) {
 						}
 					}
 				}
-				if intersections < len(properties) {
+				if empty {
+					class = new(characterClass)
+					consumes = false
+					break
+				}
+				if intersections < len(properties) && len(properties) >= 2 {
 					c, unordered, ordered, max :=
 						0, &nodeList{Type: TypeUnorderedAlternate}, &nodeList{Type: TypeAlternate}, 0
 					for element := alternate.Front(); element != nil; element = element.Next() {
@@ -796,7 +807,9 @@ func (t *Tree) Compile(file string) {
 							sequence.PushBack(predicate)
 							sequence.PushBack(element.Value)
 
-							if element.Value.(Node).GetType() == TypeNil {
+							if element.Value.(Node).GetType() == TypeString && element.Value.(Node).String() == "" {
+								unordered.PushBack(sequence)
+							} else if element.Value.(Node).GetType() == TypeNil {
 								unordered.PushBack(sequence)
 							} else if length > max {
 								unordered.PushBack(sequence)
@@ -817,7 +830,11 @@ func (t *Tree) Compile(file string) {
 						for element := ordered.Front(); element != nil; element = element.Next() {
 							alternate.PushBack(element.Value)
 						}
-						alternate.PushBack(unordered)
+						if unordered.Len() == 1 {
+							alternate.PushBack(unordered.Front().Value.(List).Front().Next().Value)
+						} else {
+							alternate.PushBack(unordered)
+						}
 					}
 				}
 			case TypeSequence:
