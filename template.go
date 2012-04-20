@@ -13,7 +13,7 @@ package {{.}}
 
 import (
 	"fmt"
-	"peg"
+	"github.com/knieriem/peg"
 )
 {{end}}
 const (\

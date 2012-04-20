@@ -1,42 +1,30 @@
-# Copyright 2010 The Go Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style
-# license that can be found in the LICENSE file.
+PEGDIR=.
 
-PKGROOT = .
-include Make.common
+PARSERGOFILES=\
+	./calculator/calculator.peg.go\
+	./cmd/leg/leg.peg.go\
+	\
+	./cmd/legleg/leg.leg.go\
+	./cmd/legcalc/calc.leg.go\
 
-.PHONY: all
-all: peg
+all:	prepare
 
-peg: main.$(O)
-	$(LD) -o peg main.$(O)
+include Make.inc
+include cmd/leg/Make.inc
 
-PKGFILES=\
-	peg.go\
-	template.go\
+prepare:	$(PEG) $(PARSERGOFILES)
 
-CMDFILES=\
-	main.go\
-	bootstrap.go\
-
-peg.$(O):\
-	$(PKGFILES)\
-
-main.$(O):\
-	peg.$(O)\
-	$(CMDFILES)\
-
-bootstrap.go: bootstrap/main.go
-	$(MAKE) -C bootstrap/ bootstrap
-	./bootstrap/bootstrap
-
-.PHONY: clean
 clean:
-	$(MAKE) -C bootstrap/ clean
-	$(MAKE) -C leg/ clean
-	rm -f *.6 *.8 bootstrap.go peg
+#	go clean ./...
+	rm -f $(BOOTSTRAP)
+	rm -f $(PARSERGOFILES)
 
-.PHONY: test
-test:	peg
-	./peg -inline -switch peg.peg
-	cmp peg.peg.go bootstrap.go
+# compared files must be equal
+test:	./cmd/peg/peg.peg.go
+	diff $(<D)/bootstrap.go $<
+	rm -f $<
+
+.PHONY:\
+	all\
+	prepare\
+	clean\

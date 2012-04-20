@@ -5,7 +5,7 @@
 package main
 
 import (
- "peg"
+ "github.com/knieriem/peg"
  "fmt"
  "io/ioutil"
  "runtime"

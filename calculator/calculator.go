@@ -5,7 +5,7 @@
 package calculator
 
 import (
- "big"
+ "math/big"
 )
 
 type Type uint8
