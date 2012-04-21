@@ -5,12 +5,13 @@ import (
 )
 
 const (
-	allOptimizations = "p:r"
+	allOptimizations = "l:p:r"
 )
 
 type optiFlags struct {
 	peek        bool
 	elimRestore bool
+	inlineLeafs bool
 }
 
 func parseOptiFlags(flags string) (o *optiFlags) {
@@ -27,6 +28,8 @@ func parseOptiFlags(flags string) (o *optiFlags) {
 			o.peek = true
 		case 'r':
 			o.elimRestore = true
+		case 'l':
+			o.inlineLeafs = true
 		}
 	}
 	return

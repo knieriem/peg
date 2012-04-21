@@ -691,6 +691,44 @@ func (t *Tree) Compile(file string, optiFlags string) {
 			}
 		}})
 
+	var inlineLeafes func(node Node) Node
+	inlineLeafes = func(node Node) (ret Node) {
+		ret = node
+		switch node.GetType() {
+		case TypeRule:
+			rule := node.(Rule)
+			switch x := rule.GetExpression(); x.GetType() {
+			case TypeCharacter, TypeDot, TypeClass, TypeString:
+				ret = x
+			case TypePlus, TypeStar, TypeQuery, TypePeekNot, TypePeekFor:
+				switch x.(List).Front().Value.(Node).GetType() {
+				case TypeCharacter, TypeDot, TypeClass, TypeString:
+					ret = x
+				}
+			}
+		case TypeName:
+			r := t.rules[node.String()]
+			x := inlineLeafes(r)
+			if r != x {
+				stats.inlineLeafs++
+				ret = x
+			}
+		case TypeSequence, TypeAlternate:
+			for el := node.(List).Front(); el != nil; el = el.Next() {
+				el.Value = inlineLeafes(el.Value.(Node))
+			}
+		case TypePlus, TypeStar, TypeQuery, TypePeekNot, TypePeekFor:
+			v := &node.(List).Front().Value
+			*v = inlineLeafes((*v).(Node))
+		}
+		return
+	}
+	if O.inlineLeafs {
+		for _, rule := range t.rules {
+			inlineLeafes(rule.GetExpression())
+		}
+	}
+
 	if t._switch {
 		var optimizeAlternates func(node Node) (consumes, eof, peek bool, class *characterClass)
 		cache := make([]struct {
@@ -1539,6 +1577,7 @@ type statValues struct {
 	elimRestore struct {
 		pos, thunkPos int
 	}
+	inlineLeafs int
 }
 
 var stats statValues
