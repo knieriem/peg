@@ -1045,7 +1045,7 @@ func (t *Tree) Compile(file string, optiFlags string) {
 		}
 		switch node.GetType() {
 		case TypeDot:
-			label.cJump(jumpIfTrue, "peekDot()")
+			label.cJump(jumpIfTrue, "(position < len(p.Buffer))")
 			stats.Peek.Dot++
 		case TypeCharacter:
 			label.cJump(jumpIfTrue, "peekChar('%v')", node)

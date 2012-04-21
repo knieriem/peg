@@ -175,11 +175,6 @@ func (p *{{def "Peg"}}) Init() {
 		return false
 	}
 {{end}}
-{{if .Peek.Dot}}\
-	peekDot := func() bool {
-		return position < len(p.Buffer)
-	}
-{{end}}
 {{if .Match.Char}}\
 	matchChar := func(c byte) bool {
 		if (position < len(p.Buffer)) && (p.Buffer[position] == c) {
