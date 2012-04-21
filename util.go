@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	allOptimizations = "1:l:p:r:s"
+	AllOptimizations = "1:l:p:r:s"
 )
 
 type optiFlags struct {
@@ -19,7 +19,7 @@ type optiFlags struct {
 func parseOptiFlags(flags string) (o *optiFlags) {
 	o = new(optiFlags)
 	if flags == "all" {
-		flags = allOptimizations
+		flags = AllOptimizations
 	}
 	for _, f := range strings.Split(flags, ":") {
 		if len(f) == 0 {
