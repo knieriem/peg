@@ -1258,6 +1258,7 @@ func (t *Tree) Compile(file string, optiFlags string) {
 			}
 
 			if peek != 0 {
+				stats.seqIfNot++
 				ko.cJump(true, "position == len(p.Buffer)")
 				w.lnPrint("switch p.Buffer[position] {")
 
@@ -1711,6 +1712,7 @@ type statValues struct {
 	optFirst struct {
 		char, dot, str, class int
 	}
+	seqIfNot    int
 	inlineLeafs int
 }
 
