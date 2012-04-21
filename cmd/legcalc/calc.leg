@@ -5,9 +5,9 @@
 package main
 
 import (
-	"os"
 	"bufio"
 	"fmt"
+	"os"
 	"strconv"
 )
 
@@ -51,7 +51,6 @@ CLOSE	= ')'		-
 EOL	= '\n' | '\r\n' | '\r' | ';'
 
 %%
-
 func main() {
 	calc := new(yyParser)
 	calc.Init()

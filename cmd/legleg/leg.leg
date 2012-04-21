@@ -21,12 +21,12 @@
 package main
 
 import (
-	"peg"
-	"log"
-	"fmt"
-	"os"
 	"flag"
+	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
+	"peg"
 )
 
 %}
