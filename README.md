@@ -11,9 +11,9 @@ To download and install, run
 
 	go get github.com/knieriem/peg
 
-Run `make prepare` to bootstrap the peg parser, and to create
-the leg parser and the example parsers. There should be a binary
-`peg` in *./cmd/peg* now.
+Run `make` or `make prepare` to bootstrap the peg parser,
+and to create the leg parser and the example parsers. There
+should be a binary `peg` in *./cmd/peg* now.
 
 To delete the generated source files and binaries that are
 not part of the project, run `make clean`.
@@ -21,8 +21,13 @@ not part of the project, run `make clean`.
 The desk calculator example from [peg(1)][] can be built by
 typing `go build` in directory *./cmd/legcalc*.
 
+The parser generators now take on option -O to turn on various
+optimizations, with a single argument consisting either of a
+number of colon-separated flags, or the string "all".
+For the possible values of these flags, see [util.go](util.go).
 
-### Summary of modifications:
+
+### Summary of other modifications:
 
 *	AddPackage, AddPeg and AddState methods have been
 	replaced by a new method AddDefine, which stores
