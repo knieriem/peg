@@ -18,6 +18,7 @@ var _switch = flag.Bool("switch", false, "replace if-else if-else like blocks wi
 
 func main() {
 	runtime.GOMAXPROCS(2)
+	flag.BoolVar(&peg.Verbose, "verbose", false, "enable additional output, like statistics")
 	flag.Parse()
 
 	if flag.NArg() != 1 {

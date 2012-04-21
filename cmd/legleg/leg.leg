@@ -136,6 +136,7 @@ var inline = flag.Bool("inline", false, "parse rule inlining")
 var _switch = flag.Bool("switch", false, "replace if-else if-else like blocks with switch blocks")
 
 func main() {
+	flag.BoolVar(&peg.Verbose, "verbose", false, "enable additional output, like statistics")
 	flag.Parse()
 
 	if flag.NArg() != 1 {

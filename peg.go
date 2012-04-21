@@ -13,6 +13,8 @@ import (
 	"text/template"
 )
 
+var Verbose bool
+
 type Type uint8
 
 const (
@@ -1273,7 +1275,9 @@ func (t *Tree) Compile(file string) {
 		}
 	}
 	w.setDry(false)
-
+	if Verbose {
+		log.Printf("%+v\n", stats)
+	}
 	tpl := template.New("parser")
 	tpl.Funcs(template.FuncMap{
 		"len":      itemLength,
