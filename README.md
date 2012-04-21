@@ -3,11 +3,24 @@ This is a modified version of Go package [peg][], written by
 of supporting LE Grammars, as defined in [peg(1)][]. See
 README.orig for the original README.
 
-The new sub directory `leg` contains source files for the
-LEG parser. Using this parser, the [peg-markdown][] package,
-which contains a LEG definition, could be ported to Go. The
-desk calculator example from [peg(1)][] can be built by typing
-`make calc` in directory `leg`.
+The subdirectory *cmd/leg* contains source files for the LEG
+parser. Using this parser, the [peg-markdown][] package,
+which contains a LEG definition, has been ported to Go.
+
+To download and install, run
+
+	go get github.com/knieriem/peg
+
+Run `make prepare` to bootstrap the peg parser, and to create
+the leg parser and the example parsers. There should be a binary
+`peg` in *./cmd/peg* now.
+
+To delete the generated source files and binaries that are
+not part of the project, run `make clean`.
+
+The desk calculator example from [peg(1)][] can be built by
+typing `go build` in directory *./cmd/legcalc*.
+
 
 ### Summary of modifications:
 
@@ -45,19 +58,6 @@ desk calculator example from [peg(1)][] can be built by typing
 	old buffer is returned. This way a parser can be reused
 	without calling *Init* again. See [./leg/calc.leg](./leg/calc.leg)
 	for an example.
-
-*	Some changes that probably could have been avoided if
-	my editor had more display capabilities (like syntax
-	highlighting):
-
-	In order to be able to quickly analyze the program and
-	its output, I gofmt'ed peg.go, and adjusted its output
-	commands so that the generated code nearly looks like
-	formatted with gofmt.
-
-	Code sections inside string arguments of print()
-	have been prefixed with \`+\` to make it easier to
-	distinguish them from normal code.
 
 
 [peg]: https://github.com/pointlander/peg
