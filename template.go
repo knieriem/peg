@@ -69,7 +69,7 @@ func (p *{{def "Peg"}}) Init() {
 {{if nvar}}\
 	var yyp int
 	var yy {{def "yystype"}}
-	var yyval = make([]{{def "yystype"}}, 200)
+	var yyval = make([]{{def "yystype"}}, 256)
 {{end}}\
 
 {{if .Actions}}\
@@ -83,7 +83,7 @@ func (p *{{def "Peg"}}) Init() {
 		func(_ string, count int) {
 			yyp += count
 			if yyp >= len(yyval) {
-				s := make([]{{def "yystype"}}, cap(yyval)+200)
+				s := make([]{{def "yystype"}}, cap(yyval)+256)
 				copy(s, yyval)
 				yyval = s
 			}
