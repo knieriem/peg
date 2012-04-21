@@ -195,7 +195,7 @@ func (p *{{def "Peg"}}) Init() {
 	matchString := func(s string) bool {
 		length := len(s)
 		next := position + length
-		if (next <= len(p.Buffer)) && (p.Buffer[position:next] == s) {
+		if (next <= len(p.Buffer)) && p.Buffer[position] == s[0] && (p.Buffer[position:next] == s) {
 			position = next
 			return true
 		} else if position >= p.Max {
