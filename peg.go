@@ -1219,16 +1219,65 @@ func (t *Tree) Compile(file string, optiFlags string) {
 				ok.label()
 			}
 		case TypeSequence:
-			for element := node.(List).Front(); element != nil; element = element.Next() {
-				updateFlags(compile(element.Value.(Node), ko))
+			var cs []string
+			var peek Type
+			var element0 = node.(List).Front()
+
+			if O.seqPeekNot {
+				for el := element0; el != nil; el = el.Next() {
+					sub := el.Value.(Node)
+					switch typ := sub.GetType(); typ {
+					case TypePeekNot:
+						switch child := sub.(List).Front().Value.(Node); child.GetType() {
+						case TypeCharacter:
+							cs = append(cs, "'"+child.String()+"'")
+							continue
+						}
+					case TypeDot:
+						if len(cs) > 0 {
+							peek = typ
+							element0 = el.Next()
+						}
+					default:
+						if len(cs) > 1 {
+							peek = typ
+							element0 = el
+						}
+					}
+					break
+				}
 			}
-			if node.(List).Len() > 1 {
-				if chgok.pos {
-					chgko.pos = true
+
+			if peek != 0 {
+				ko.cJump(true, "position == len(p.Buffer)")
+				w.lnPrint("switch p.Buffer[position] {")
+
+				w.lnPrint("case %s:", strings.Join(cs, ", "))
+				w.indent++
+				ko.jump()
+				w.indent--
+				w.lnPrint("default:")
+				w.indent++
+				if peek == TypeDot {
+					w.lnPrint("position++")
+					chgok.pos = true
 				}
-				if chgok.thPos {
-					chgko.thPos = true
+			}
+			for element := element0; element != nil; element = element.Next() {
+				cko, cok := compile(element.Value.(Node), ko)
+				if element.Next() == nil {
+					if chgok.pos {
+						cko.pos = true
+					}
+					if chgok.thPos {
+						cko.thPos = true
+					}
 				}
+				updateFlags(cko, cok)
+			}
+			if peek != 0 {
+				w.indent--
+				w.lnPrint("}")
 			}
 		case TypePeekFor:
 			sub := node.(List).Front().Value.(Node)
