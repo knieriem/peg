@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"text/template"
 )
 
@@ -485,7 +486,9 @@ func (t *Tree) AddClass(text string) {
 		}
 	}
 }
-func (t *Tree) AddPredicate(text string) { t.push(&token{Type: TypePredicate, string: text}) }
+func (t *Tree) AddPredicate(text string) {
+	t.push(&token{Type: TypePredicate, string: strings.TrimSpace(text)})
+}
 
 var commit *token = &token{Type: TypeCommit, string: "commit"}
 
