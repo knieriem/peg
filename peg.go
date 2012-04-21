@@ -565,9 +565,11 @@ var anyChar = func() (c *characterClass) {
 	return
 }()
 
-func (t *Tree) Compile(file string) {
+func (t *Tree) Compile(file string, optiFlags string) {
 	counts := [TypeLast]uint{}
 	nvar := 0
+
+	O := parseOptiFlags(optiFlags)
 
 	for element := t.Front(); element != nil; element = element.Next() {
 		node := element.Value.(Node)
@@ -900,6 +902,7 @@ func (t *Tree) Compile(file string) {
 	defer out.Close()
 
 	w := newWriter(out)
+	w.elimRestore = O.elimRestore
 	print := func(format string, a ...interface{}) {
 		if !w.dryRun {
 			fmt.Fprintf(w, format, a...)
@@ -996,6 +999,9 @@ func (t *Tree) Compile(file string) {
 		return
 	}
 	canCompilePeek := func(node Node, jumpIfTrue bool, label *label) bool {
+		if !O.peek {
+			return false
+		}
 		switch node.GetType() {
 		case TypeDot:
 			label.cJump(jumpIfTrue, "peekDot()")
@@ -1375,6 +1381,7 @@ type writer struct {
 	dryRun      bool
 	savedIndent int
 	saveFlags   []saveFlags
+	elimRestore bool
 }
 
 type saveFlags struct {
@@ -1465,6 +1472,10 @@ func (w *label) lrestore(label *label, savePos, saveThPos bool) {
 		if label.used {
 			label.label()
 		}
+	}
+	if !w.elimRestore {
+		savePos = true
+		saveThPos = true
 	}
 	switch {
 	case savePos && saveThPos:

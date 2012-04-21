@@ -13,8 +13,11 @@ import (
 	"runtime"
 )
 
-var inline = flag.Bool("inline", false, "parse rule inlining")
-var _switch = flag.Bool("switch", false, "replace if-else if-else like blocks with switch blocks")
+var (
+	inline    = flag.Bool("inline", false, "parse rule inlining")
+	_switch   = flag.Bool("switch", false, "replace if-else if-else like blocks with switch blocks")
+	optiFlags = flag.String("O", "", "turn on various optimizations")
+)
 
 func main() {
 	runtime.GOMAXPROCS(2)
@@ -36,7 +39,7 @@ func main() {
 	p := &Leg{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
 	p.Init()
 	if p.Parse(0) {
-		p.Compile(file + ".go")
+		p.Compile(file+".go", *optiFlags)
 	} else {
 		p.PrintError()
 	}

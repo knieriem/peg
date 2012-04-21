@@ -494,5 +494,5 @@ func main() {
 	t.AddSequence()
 	t.AddExpression()
 
-	t.Compile("bootstrap.go")
+	t.Compile("bootstrap.go", "all")
 }
