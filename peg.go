@@ -1471,8 +1471,13 @@ func (w *label) lrestore(label *label, savePos, saveThPos bool) {
 		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", w.sid, w.sid)
 	case !savePos && saveThPos:
 		w.lnPrint("thunkPosition = thunkPosition%d", w.sid)
+		stats.elimRestore.pos++
 	case savePos:
 		w.lnPrint("position = position%d", w.sid)
+		stats.elimRestore.thunkPos++
+	default:
+		stats.elimRestore.thunkPos++
+		stats.elimRestore.pos++
 	}
 	if w.dryRun {
 		save := &w.saveFlags[w.id]
@@ -1519,6 +1524,9 @@ func (w *writer) lnPrint(format string, a ...interface{}) {
 type statValues struct {
 	Peek, Match struct {
 		Char, Dot, String int
+	}
+	elimRestore struct {
+		pos, thunkPos int
 	}
 }
 
