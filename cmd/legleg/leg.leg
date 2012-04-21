@@ -22,6 +22,7 @@ package main
 
 import (
 	"peg"
+	"log"
 	"fmt"
 	"os"
 	"flag"
@@ -146,7 +147,7 @@ func main() {
 
 	buffer, error := ioutil.ReadFile(file)
 	if error != nil {
-		fmt.Printf("%v\n", error)
+		log.Println(error)
 		return
 	}
 	p := &yyParser{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
