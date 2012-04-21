@@ -133,7 +133,7 @@ func (p *{{def "Peg"}}) Init() {
 {{	end}}
 	p.ResetBuffer = func(s string) (old string) {
 		if p.Max < len(p.Buffer) {
-			old = p.Buffer[p.Max:]
+			old = p.Buffer[position:]
 		}
 		p.Buffer = s
 		thunkPosition = 0
