@@ -1050,6 +1050,9 @@ func (t *Tree) Compile(file string, optiFlags string) {
 		case TypeCharacter:
 			label.cJump(jumpIfTrue, "peekChar('%v')", node)
 			stats.Peek.Char++
+		case TypeClass:
+			label.cJump(jumpIfTrue, "peekClass(%d)", t.Classes[node.String()].Index)
+			stats.Peek.Class++
 		case TypePredicate:
 			label.cJump(jumpIfTrue, "(%v)", node)
 		default:
@@ -1700,7 +1703,7 @@ func (w *writer) lnPrint(format string, a ...interface{}) {
 
 type statValues struct {
 	Peek, Match struct {
-		Char, Dot, String int
+		Char, Class, Dot, String int
 	}
 	elimRestore struct {
 		pos, thunkPos int

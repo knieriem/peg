@@ -219,6 +219,15 @@ func (p *{{def "Peg"}}) Init() {
 		}
 		return false
 	}
+{{if .Peek.Class}}\
+	peekClass := func(class uint) bool {
+		if (position < len(p.Buffer)) &&
+			((classes[class][p.Buffer[position]>>3] & (1 << (p.Buffer[position] & 7))) != 0) {
+			return true
+		}
+		return false
+	}
+{{end}}
 {{	end}}
 {{end}}\
 	p.rules = [...]func() bool{
