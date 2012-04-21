@@ -5,14 +5,15 @@ import (
 )
 
 const (
-	allOptimizations = "l:p:r:s"
+	allOptimizations = "1:l:p:r:s"
 )
 
 type optiFlags struct {
-	peek        bool
-	elimRestore bool
-	inlineLeafs bool
-	seqPeekNot  bool
+	peek               bool
+	elimRestore        bool
+	inlineLeafs        bool
+	seqPeekNot         bool
+	unorderedFirstItem bool
 }
 
 func parseOptiFlags(flags string) (o *optiFlags) {
@@ -25,6 +26,8 @@ func parseOptiFlags(flags string) (o *optiFlags) {
 			continue
 		}
 		switch f[0] {
+		case '1':
+			o.unorderedFirstItem = true
 		case 'p':
 			o.peek = true
 		case 'r':

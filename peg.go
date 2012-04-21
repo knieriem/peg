@@ -1059,19 +1059,8 @@ func (t *Tree) Compile(file string, optiFlags string) {
 	}
 	compile = func(node Node, ko *label) (chgko, chgok chgFlags) {
 		updateFlags := func(cko, cok chgFlags) (chgFlags, chgFlags) {
-			if cko.pos {
-				chgko.pos = true
-			}
-			if cko.thPos {
-				chgko.thPos = true
-			}
-			if cok.pos {
-				chgok.pos = true
-			}
-			if cok.thPos {
-				chgok.thPos = true
-			}
-			return cko, cok
+			chgko, chgok = updateChgFlags(chgko, chgok, cko, cok)
+			return chgko, chgok
 		}
 		switch node.GetType() {
 		case TypeRule:
@@ -1216,7 +1205,11 @@ func (t *Tree) Compile(file string, optiFlags string) {
 				}
 				print(":")
 				w.indent++
-				updateFlags(compile(node, done))
+				if O.unorderedFirstItem {
+					updateFlags(compileOptFirst(w, node, done, compile))
+				} else {
+					updateFlags(compile(node, done))
+				}
 				w.lnPrint("break")
 				w.indent--
 				if element.Next() == nil {
@@ -1473,8 +1466,78 @@ func (t *Tree) Compile(file string, optiFlags string) {
 	}
 }
 
+func compileOptFirst(w *writer, node Node, ko *label, compile func(Node, *label) (chgFlags, chgFlags)) (chgko, chgok chgFlags) {
+	updateFlags := func(cko, cok chgFlags) (chgFlags, chgFlags) {
+		chgko, chgok = updateChgFlags(chgko, chgok, cko, cok)
+		return chgko, chgok
+	}
+	switch node.GetType() {
+	case TypeCharacter:
+		w.lnPrint("position++ // matchChar")
+		chgok.pos = true
+		stats.optFirst.char++
+	case TypeDot:
+		chgok.pos = true
+		stats.optFirst.dot++
+	case TypeClass:
+		w.lnPrint("position++ // matchClass")
+		chgok.pos = true
+		stats.optFirst.class++
+	case TypeString:
+		if s := node.String(); len(s) == 2 {
+			w.lnPrint("position++ // matchString(`%s`)", s)
+			ko.cJump(false, "matchChar('%c')", s[1])
+			chgok.pos = true
+			stats.Match.Char++
+			stats.optFirst.str++
+		} else if s != "" {
+			w.lnPrint("position++")
+			ko.cJump(false, "matchString(\"%s\")", s[1:])
+			chgok.pos = true
+			stats.Match.String++
+			stats.optFirst.str++
+		}
+	case TypeSequence:
+		front := node.(List).Front()
+		for element := front; element != nil; element = element.Next() {
+			if element == front {
+				updateFlags(compileOptFirst(w, element.Value.(Node), ko, compile))
+			} else {
+				updateFlags(compile(element.Value.(Node), ko))
+			}
+		}
+		if node.(List).Len() > 1 {
+			if chgok.pos {
+				chgko.pos = true
+			}
+			if chgok.thPos {
+				chgko.thPos = true
+			}
+		}
+	default:
+		chgko, chgok = compile(node, ko)
+	}
+	return
+}
+
 type chgFlags struct {
 	pos, thPos bool
+}
+
+func updateChgFlags(ko, ok, newko, newok chgFlags) (chgFlags, chgFlags) {
+	if newko.pos {
+		ko.pos = true
+	}
+	if newko.thPos {
+		ko.thPos = true
+	}
+	if newok.pos {
+		ok.pos = true
+	}
+	if newok.thPos {
+		ok.thPos = true
+	}
+	return ko, ok
 }
 
 type writer struct {
@@ -1641,6 +1704,9 @@ type statValues struct {
 	}
 	elimRestore struct {
 		pos, thunkPos int
+	}
+	optFirst struct {
+		char, dot, str, class int
 	}
 	inlineLeafs int
 }
