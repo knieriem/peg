@@ -1160,10 +1160,21 @@ func (t *Tree) Compile(file string, optiFlags string) {
 			done.cJump(true, "position == len(p.Buffer)")
 			w.lnPrint("switch p.Buffer[position] {")
 			element := list.Front()
-			for ; element.Next() != nil; element = element.Next() {
+			for ; element != nil; element = element.Next() {
 				sequence := element.Value.(List).Front()
 				class := sequence.Value.(List).Front().Value.(Node).(Token).GetClass()
-				sequence = sequence.Next()
+				node := sequence.Next().Value.(Node)
+
+				if element.Next() == nil {
+					if class.len() > 2 {
+						w.lnPrint("default:")
+						w.indent++
+						updateFlags(compile(node, done))
+						w.indent--
+						break
+					}
+				}
+
 				w.lnPrint("case")
 				comma := false
 				for d := 0; d < 256; d++ {
@@ -1205,14 +1216,16 @@ func (t *Tree) Compile(file string, optiFlags string) {
 				}
 				print(":")
 				w.indent++
-				updateFlags(compile(sequence.Value.(Node), done))
+				updateFlags(compile(node, done))
 				w.lnPrint("break")
 				w.indent--
+				if element.Next() == nil {
+					w.lnPrint("default:")
+					w.indent++
+					done.jump()
+					w.indent--
+				}
 			}
-			w.lnPrint("default:")
-			w.indent++
-			updateFlags(compile(element.Value.(List).Front().Next().Value.(Node), done))
-			w.indent--
 			w.lnPrint("}")
 			w.end()
 			if ok.used {
