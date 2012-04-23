@@ -568,7 +568,7 @@ var anyChar = func() (c *characterClass) {
 	return
 }()
 
-func (t *Tree) Compile(file string, optiFlags string) {
+func (t *Tree) Compile(out io.Writer, optiFlags string) {
 	counts := [TypeLast]uint{}
 	nvar := 0
 
@@ -934,13 +934,6 @@ func (t *Tree) Compile(file string, optiFlags string) {
 			}
 		}
 	}
-
-	out, error := os.Create(file)
-	if error != nil {
-		fmt.Printf("%v: %v\n", file, error)
-		return
-	}
-	defer out.Close()
 
 	w := newWriter(out)
 	w.elimRestore = O.elimRestore

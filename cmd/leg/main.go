@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"github.com/knieriem/peg"
@@ -39,7 +40,9 @@ func main() {
 	p := &Leg{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
 	p.Init()
 	if err = p.Parse(0); err == nil {
-		p.Compile(file+".go", *optiFlags)
+		w := bufio.NewWriter(os.Stdout)		
+		p.Compile(w, *optiFlags)
+		w.Flush()
 	} else {
 		log.Print(file, ":", err)
 	}

@@ -1,11 +1,11 @@
 PEGDIR=.
 
 PARSERGOFILES=\
-	./calculator/calculator.peg.go\
-	./cmd/leg/leg.peg.go\
+	./calculator/calculator.go\
+	./cmd/leg/leg.go\
 	\
-	./cmd/legleg/leg.leg.go\
-	./cmd/legcalc/calc.leg.go\
+	./cmd/legleg/leg.go\
+	./cmd/legcalc/calc.go\
 
 all:	prepare
 
@@ -15,7 +15,7 @@ include cmd/leg/Make.inc
 prepare:	$(PEG) $(PARSERGOFILES)
 
 clean:
-#	go clean ./...
+	go clean ./...
 	rm -f $(BOOTSTRAP)
 	rm -f $(PARSERGOFILES)
 

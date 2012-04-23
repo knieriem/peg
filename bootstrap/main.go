@@ -5,7 +5,9 @@
 package main
 
 import (
+	"bufio"
 	"github.com/knieriem/peg"
+	"os"
 	"runtime"
 )
 
@@ -494,5 +496,7 @@ func main() {
 	t.AddSequence()
 	t.AddExpression()
 
-	t.Compile("bootstrap.go", "all")
+	w := bufio.NewWriter(os.Stdout)
+	t.Compile(w, "all")
+	w.Flush()
 }

@@ -8,12 +8,12 @@ BOOTSTRAP=$(PEGDIR)/cmd/peg/bootstrap.go
 $(PEG):	$(BOOTSTRAP)
 	cd $(@D) && GOARCH= GOOS= go build
 
-$(LEG):	$(PEGDIR)/cmd/leg/leg.peg.go
+$(LEG):	$(PEGDIR)/cmd/leg/leg.go
 	cd $(@D) && GOARCH= GOOS= go build
 
 $(BOOTSTRAP):
 	cd $(PEGDIR) && GOARCH= GOOS= go install
-	cd $(@D) && go run ../../bootstrap/main.go
+	cd $(@D) && go run ../../bootstrap/main.go > $(@F)
 
-%.peg.go: %.peg $(PEG)
-	$(PEG) -switch -inline -O all $<
+%.go: %.peg $(PEG)
+	$(PEG) -switch -inline -O all $< > $@

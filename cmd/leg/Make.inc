@@ -1,4 +1,4 @@
 # to be included after ../../Make.inc
 
-%.leg.go: %.leg $(LEG)
-	$(LEG) -switch -O all $<
+%.go: %.leg $(LEG)
+	$(LEG) -switch -O all $< > $@
