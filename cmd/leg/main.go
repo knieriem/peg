@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/knieriem/peg"
 	"io/ioutil"
+	"log"
 	"os"
 	"runtime"
 )
@@ -31,16 +32,15 @@ func main() {
 	}
 	file := flag.Arg(0)
 
-	buffer, error := ioutil.ReadFile(file)
-	if error != nil {
-		fmt.Printf("%v\n", error)
-		return
+	buffer, err := ioutil.ReadFile(file)
+	if err != nil {
+		log.Fatal(err)
 	}
 	p := &Leg{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
 	p.Init()
-	if p.Parse(0) {
+	if err = p.Parse(0); err == nil {
 		p.Compile(file+".go", *optiFlags)
 	} else {
-		p.PrintError()
+		log.Print(file, ":", err)
 	}
 }

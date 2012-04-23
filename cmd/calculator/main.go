@@ -7,6 +7,7 @@ package main
 import (
 	"fmt"
 	"github.com/knieriem/peg/calculator"
+	"log"
 	"os"
 )
 
@@ -21,9 +22,8 @@ func main() {
 	calc := &calculator.Calculator{Buffer: expression}
 	calc.Init()
 	calc.Expression.Init(expression)
-	if !calc.Parse(0) {
-		calc.PrintError()
-		return
+	if err := calc.Parse(0); err != nil {
+		log.Fatal(err)
 	}
 	fmt.Printf("= %v\n", calc.Evaluate())
 }

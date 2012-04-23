@@ -29,26 +29,51 @@ type {{def "Peg"}} struct {
 	ResetBuffer	func(string) string
 }
 
-func (p *{{def "Peg"}}) Parse(ruleId int) bool {
+func (p *{{def "Peg"}}) Parse(ruleId int) (err error) {
 	if p.rules[ruleId]() {
-		return true
+		return
 	}
-	return false
+	return p.parseErr()
 }
 
-func (p *{{def "Peg"}}) PrintError() {
-	line := 1
-	character := 0
+type ErrPos struct {
+	Line, Pos int
+}
+
+func	(e *ErrPos) String() string {
+	return fmt.Sprintf("%d:%d", e.Line, e.Pos)
+}
+
+type UnexpectedCharError struct {
+	After, At	ErrPos
+	Char	byte
+}
+
+func (e *UnexpectedCharError) Error() string {
+	return fmt.Sprintf("%v: unexpected character '%c'", &e.At, e.Char)
+}
+
+type UnexpectedEOFError struct {
+	After ErrPos
+}
+
+func (e *UnexpectedEOFError) Error() string {
+	return fmt.Sprintf("%v: unexpected end of file", &e.After)
+}
+
+func (p *{{def "Peg"}}) parseErr() (err error) {
+	var pos, after ErrPos
+	pos.Line = 1
 	for i, c := range p.Buffer[0:] {
 		if c == '\n' {
-			line++
-			character = 0
+			pos.Line++
+			pos.Pos = 0
 		} else {
-			character++
+			pos.Pos++
 		}
 		if i == p.Min {
 			if p.Min != p.Max {
-				fmt.Printf("parse error after line %v character %v\n", line, character)
+				after = pos
 			} else {
 				break
 			}
@@ -56,12 +81,12 @@ func (p *{{def "Peg"}}) PrintError() {
 			break
 		}
 	}
-	fmt.Printf("parse error: unexpected ")
 	if p.Max >= len(p.Buffer) {
-		fmt.Printf("end of file found\n")
+		err = &UnexpectedEOFError{after}
 	} else {
-		fmt.Printf("'%c' at line %v character %v\n", p.Buffer[p.Max], line, character)
+		err = &UnexpectedCharError{after, pos, p.Buffer[p.Max]}
 	}
+	return
 }
 
 func (p *{{def "Peg"}}) Init() {
