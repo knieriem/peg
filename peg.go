@@ -1313,10 +1313,21 @@ func (t *Tree) Compile(file string, optiFlags string) {
 			}
 			chgko = cok
 		case TypeQuery:
+			sub := node.(List).Front().Value.(Node)
+			switch sub.GetType() {
+			case TypeCharacter:
+				w.lnPrint("matchChar('%v')", sub)
+				chgok.pos = true
+				return
+			case TypeDot:
+				w.lnPrint("matchDot()")
+				chgok.pos = true
+				return
+			}
 			qko := w.newLabel()
 			qok := w.newLabel()
 			qko.saveBlock()
-			cko, cok := compile(node.(List).Front().Value.(Node), qko)
+			cko, cok := compile(sub, qko)
 			if qko.unsafe() {
 				qok.jump()
 			}
