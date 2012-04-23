@@ -16,4 +16,4 @@ $(BOOTSTRAP):
 	cd $(@D) && go run ../../bootstrap/main.go
 
 %.peg.go: %.peg $(PEG)
-	$(PEG) -switch -inline $<
+	$(PEG) -switch -inline -O all $<
