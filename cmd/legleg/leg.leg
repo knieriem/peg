@@ -38,7 +38,7 @@ import (
 # Hierarchical syntax
 
 grammar=	- declaration?
-			(yystype | yyuserstate | yyswitchexcl)*
+			(yystype | yyuserstate | noexport | yyswitchexcl)*
 			( declaration | definition )+ trailer? end-of-file
 
 declaration=	- '%{' < ( !'%}' . )* > RPERCENT		{ p.AddHeader(yytext) }	commit
@@ -50,6 +50,8 @@ yyuserstate=  "%userstate" - gotype { p.Define("userstate", yytext) } commit
 yyswitchexcl=	"%switchexcl" -
 			OPEN (identifier { p.SwitchExclude(yytext) } )+ - CLOSE
 			commit
+
+yynoexport=  "%noexport" - { p.Define("noexport", "1") } commit
 
 trailer=	'%%' < .* >				{ p.AddTrailer(yytext) }	commit
 

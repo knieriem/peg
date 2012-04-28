@@ -36,33 +36,33 @@ func (p *{{def "Peg"}}) Parse(ruleId int) (err error) {
 	return p.parseErr()
 }
 
-type ErrPos struct {
+type {{id "e"}}rrPos struct {
 	Line, Pos int
 }
 
-func	(e *ErrPos) String() string {
+func	(e *{{id "e"}}rrPos) String() string {
 	return fmt.Sprintf("%d:%d", e.Line, e.Pos)
 }
 
-type UnexpectedCharError struct {
-	After, At	ErrPos
+type {{id "u"}}nexpectedCharError struct {
+	After, At	{{id "e"}}rrPos
 	Char	byte
 }
 
-func (e *UnexpectedCharError) Error() string {
+func (e *{{id "u"}}nexpectedCharError) Error() string {
 	return fmt.Sprintf("%v: unexpected character '%c'", &e.At, e.Char)
 }
 
-type UnexpectedEOFError struct {
-	After ErrPos
+type {{id "u"}}nexpectedEOFError struct {
+	After {{id "e"}}rrPos
 }
 
-func (e *UnexpectedEOFError) Error() string {
+func (e *{{id "u"}}nexpectedEOFError) Error() string {
 	return fmt.Sprintf("%v: unexpected end of file", &e.After)
 }
 
 func (p *{{def "Peg"}}) parseErr() (err error) {
-	var pos, after ErrPos
+	var pos, after {{id "e"}}rrPos
 	pos.Line = 1
 	for i, c := range p.Buffer[0:] {
 		if c == '\n' {
@@ -82,9 +82,9 @@ func (p *{{def "Peg"}}) parseErr() (err error) {
 		}
 	}
 	if p.Max >= len(p.Buffer) {
-		err = &UnexpectedEOFError{after}
+		err = &{{id "u"}}nexpectedEOFError{after}
 	} else {
-		err = &UnexpectedCharError{after, pos, p.Buffer[p.Max]}
+		err = &{{id "u"}}nexpectedCharError{after, pos, p.Buffer[p.Max]}
 	}
 	return
 }
