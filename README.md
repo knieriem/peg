@@ -1,7 +1,9 @@
 This is a modified version of Go package [peg][], written by
 [pointlander](https://github.com/pointlander), for the purpose
-of supporting LE Grammars, as defined in [peg(1)][]. See
-README.orig for the original README.
+of supporting LEG grammars, a variant of PEG grammars as defined
+in [peg(1)][]. See README.orig for the original README.  
+If you do not intend to use a LEG grammar, please take a look
+at the [original package][peg] instead.
 
 The subdirectory *cmd/leg* contains source files for the LEG
 parser. Using this parser, the [peg-markdown][] package,
