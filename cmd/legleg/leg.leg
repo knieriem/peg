@@ -38,7 +38,7 @@ import (
 # Hierarchical syntax
 
 grammar=	- declaration?
-			(yystype | yyuserstate | noexport | yyswitchexcl)*
+			(yystype | yyuserstate | yynoexport | yyswitchexcl)*
 			( declaration | definition )+ trailer? end-of-file
 
 declaration=	- '%{' < ( !'%}' . )* > RPERCENT		{ p.AddHeader(yytext) }	commit
