@@ -143,14 +143,15 @@ func (p *{{def "Peg"}}) Init() {
 			copy(newThunks, thunks)
 			thunks = newThunks
 		}
-		thunks[thunkPosition].action = action
-		if arg != 0 {
-			thunks[thunkPosition].begin = arg // use begin to store an argument
-		} else {
-			thunks[thunkPosition].begin = begin
-		}
-		thunks[thunkPosition].end = end
+		t := &thunks[thunkPosition]
 		thunkPosition++
+		t.action = action
+		if arg != 0 {
+			t.begin = arg // use begin to store an argument
+		} else {
+			t.begin = begin
+		}
+		t.end = end
 	}
 	do := func(action uint{{$bits}}) {
 		doarg(action, 0)
@@ -165,20 +166,20 @@ func (p *{{def "Peg"}}) Init() {
 		position = 0
 		p.Min = 0
 		p.Max = 0
+		end = 0
 		return
 	}
 {{	if hasCommit}}
 	commit := func(thunkPosition0 int) bool {
 		if thunkPosition0 == 0 {
-			for i := 0; i < thunkPosition; i++ {
-				b := thunks[i].begin
-				e := thunks[i].end
-				s := ""
-				if b >= 0 && e <= len(p.Buffer) && b <= e {
-					s = p.Buffer[b:e]
+			s := ""
+			for _, t := range thunks[:thunkPosition] {
+				b := t.begin
+				if b >= 0 && b <= t.end {
+					s = p.Buffer[b:t.end]
 				}
 				magic := b
-				actions[thunks[i].action](s, magic)
+				actions[t.action](s, magic)
 			}
 			p.Min = position
 			thunkPosition = 0
