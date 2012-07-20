@@ -158,7 +158,7 @@ func (p *{{def "Peg"}}) Init() {
 	}
 {{	end}}
 	p.ResetBuffer = func(s string) (old string) {
-		if p.Max < len(p.Buffer) {
+		if position < len(p.Buffer) {
 			old = p.Buffer[position:]
 		}
 		p.Buffer = s
