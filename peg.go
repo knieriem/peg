@@ -115,7 +115,7 @@ type Name interface {
 type name struct {
 	Type
 	string string
-	varp *variable
+	varp   *variable
 }
 
 func (t *name) String() string {
@@ -131,7 +131,7 @@ type Token interface {
 type token struct {
 	Type
 	string string
-	class *characterClass
+	class  *characterClass
 }
 
 func (t *token) GetClass() *characterClass {
@@ -349,7 +349,7 @@ func New(inline, _switch bool) *Tree {
 			"Peg":       "yyParser",
 			"userstate": "",
 			"yystype":   "yyStype",
-			"noexport":   "",
+			"noexport":  "",
 		},
 		inline:  inline,
 		_switch: _switch}
@@ -1391,9 +1391,9 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 	}
 	tpl := template.New("parser")
 	tpl.Funcs(template.FuncMap{
-		"len":      itemLength,
-		"def":      func(key string) string { return t.defines[key] },
-		"id":	func(identifier string) string {
+		"len": itemLength,
+		"def": func(key string) string { return t.defines[key] },
+		"id": func(identifier string) string {
 			if t.defines["noexport"] != "" {
 				return identifier
 			}
