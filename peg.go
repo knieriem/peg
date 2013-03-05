@@ -1114,7 +1114,7 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			}
 		case TypeAlternate:
 			list := node.(List)
-			ok := w.newLabel()
+			ok := w.newLabel("ok")
 			element := list.Front()
 			if ok.unsafe() {
 				w.begin()
@@ -1122,7 +1122,7 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			}
 			var next *label
 			for element.Next() != nil {
-				next = w.newLabel()
+				next = w.newLabel("nextAlt")
 				cko, _ := updateFlags(compile(element.Value.(Node), next))
 				ok.jump()
 				if next.used {
@@ -1141,7 +1141,7 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			}
 		case TypeUnorderedAlternate:
 			list := node.(List)
-			done, ok := ko, w.newLabel()
+			done, ok := ko, w.newLabel("ok")
 			w.begin()
 			done.cJump(true, "position == len(p.Buffer)")
 			w.lnPrint("switch p.Buffer[position] {")
@@ -1288,7 +1288,7 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			if canCompilePeek(sub, false, ko) {
 				return
 			}
-			l := w.newLabel()
+			l := w.newLabel("")
 			l.saveBlock()
 			cko, cok := compile(sub, ko)
 			l.lrestore(nil, cok.pos, cok.thPos)
@@ -1298,7 +1298,7 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			if canCompilePeek(sub, true, ko) {
 				return
 			}
-			ok := w.newLabel()
+			ok := w.newLabel("ok")
 			ok.saveBlock()
 			cko, cok := compile(sub, ok)
 			ko.jump()
@@ -1318,8 +1318,8 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 				chgok.pos = true
 				return
 			}
-			qko := w.newLabel()
-			qok := w.newLabel()
+			qko := w.newLabel("ko")
+			qok := w.newLabel("ok")
 			qko.saveBlock()
 			cko, cok := compile(sub, qko)
 			if qko.unsafe() {
@@ -1333,8 +1333,8 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			}
 			chgok = cok
 		case TypeStar:
-			again := w.newLabel()
-			out := w.newLabel()
+			again := w.newLabel("loop")
+			out := w.newLabel("out")
 			again.label()
 			out.saveBlock()
 			cko, cok := compile(node.(List).Front().Value.(Node), out)
@@ -1342,8 +1342,8 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			out.restore(cko.pos, cko.thPos)
 			chgok = cok
 		case TypePlus:
-			again := w.newLabel()
-			out := w.newLabel()
+			again := w.newLabel("loop")
+			out := w.newLabel("out")
 			updateFlags(compile(node.(List).Front().Value.(Node), ko))
 			again.label()
 			out.saveBlock()
@@ -1373,7 +1373,7 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 		if expression == nilNode {
 			continue
 		}
-		ko := w.newLabel()
+		ko := w.newLabel("ko")
 		ko.sid = 0
 		if count, ok := t.rulesCount[rule.String()]; !ok {
 		} else if t.inline && count == 1 && ko.id != 0 {
@@ -1450,7 +1450,8 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			w.lnPrint("nil,")
 			continue
 		}
-		ko := w.newLabel()
+		w.setLabelBase()
+		ko := w.newLabel("ko")
 		ko.sid = 0
 		w.lnPrint("/* %v ", rule.GetId())
 		printRule(rule)
@@ -1557,12 +1558,14 @@ func updateChgFlags(ko, ok, newko, newok chgFlags) (chgFlags, chgFlags) {
 
 type writer struct {
 	io.Writer
-	indent      int
-	nLabels     int
-	dryRun      bool
-	savedIndent int
-	saveFlags   []saveFlags
-	elimRestore bool
+	indent             int
+	nLabels            int
+	labelBase          int
+	labelNameFirstUsed map[string]int
+	dryRun             bool
+	savedIndent        int
+	saveFlags          []saveFlags
+	elimRestore        bool
 }
 
 type saveFlags struct {
@@ -1593,30 +1596,52 @@ func (w *writer) setDry(on bool) {
 	}
 }
 
+func (w *writer) setLabelBase() {
+	w.labelBase = w.nLabels
+	w.labelNameFirstUsed = make(map[string]int, 16)
+}
+
 type label struct {
 	id, sid int
+	name    string
 	*writer
 	used           bool
 	savedBlockOpen bool
 }
 
-func (w *writer) newLabel() *label {
+func (w *writer) newLabel(name string) (l *label) {
 	i := w.nLabels
 	w.nLabels++
 	if w.dryRun {
 		w.saveFlags = append(w.saveFlags, saveFlags{})
 	}
-	return &label{id: i, sid: i, writer: w}
+	l = &label{id: i, sid: i, name: "l", writer: w}
+	if name != "" {
+		l.name = name
+		if m := w.labelNameFirstUsed; m != nil {
+			if _, used := m[name]; !used {
+				m[name] = l.id - w.labelBase
+			}
+		}
+	}
+	return
 }
 
+func (w *label) String() string {
+	relId := w.id - w.labelBase
+	if id := w.labelNameFirstUsed[w.name]; id == relId {
+		return w.name
+	}
+	return fmt.Sprintf("%s%d", w.name, relId)
+}
 func (w *label) label() {
 	w.indent--
-	w.lnPrint("l%d:", w.id)
+	w.lnPrint("%v:", w)
 	w.indent++
 }
 
 func (w *label) jump() {
-	w.lnPrint("goto l%d", w.id)
+	w.lnPrint("goto %v", w)
 	w.used = true
 }
 
@@ -1630,13 +1655,17 @@ func (w *label) saveBlock() {
 }
 func (w *label) save() {
 	save := w.saveFlags[w.id]
+	sid := w.sid
+	if sid != 0 {
+		sid -= w.labelBase + 1
+	}
 	switch {
 	case save.pos && save.thPos:
-		w.lnPrint("position%d, thunkPosition%d := position, thunkPosition", w.sid, w.sid)
+		w.lnPrint("position%d, thunkPosition%d := position, thunkPosition", sid, sid)
 	case !save.pos && save.thPos:
-		w.lnPrint("thunkPosition%d := thunkPosition", w.sid)
+		w.lnPrint("thunkPosition%d := thunkPosition", sid)
 	case save.pos:
-		w.lnPrint("position%d := position", w.sid)
+		w.lnPrint("position%d := position", sid)
 	}
 }
 
@@ -1658,14 +1687,18 @@ func (w *label) lrestore(label *label, savePos, saveThPos bool) {
 		savePos = true
 		saveThPos = true
 	}
+	sid := w.sid
+	if sid != 0 {
+		sid -= w.labelBase + 1
+	}
 	switch {
 	case savePos && saveThPos:
-		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", w.sid, w.sid)
+		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", sid, sid)
 	case !savePos && saveThPos:
-		w.lnPrint("thunkPosition = thunkPosition%d", w.sid)
+		w.lnPrint("thunkPosition = thunkPosition%d", sid)
 		stats.elimRestore.pos++
 	case savePos:
-		w.lnPrint("position = position%d", w.sid)
+		w.lnPrint("position = position%d", sid)
 		stats.elimRestore.thunkPos++
 	default:
 		stats.elimRestore.thunkPos++
@@ -1698,7 +1731,7 @@ func (w *label) cJump(jumpIfTrue bool, format string, a ...interface{}) {
 	}
 	w.lnPrint(format, a...)
 	fmt.Fprint(w, " {")
-	w.lnPrint("\tgoto l%d", w.id)
+	w.lnPrint("\tgoto %v", w)
 	w.lnPrint("}")
 }
 
