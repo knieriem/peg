@@ -1462,14 +1462,15 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			w.lnPrint("nil,")
 			continue
 		}
-		w.lnPrint("func() bool {")
+		w.lnPrint("func() (match bool) {")
 		w.indent++
 		ko.save()
 		cko, _ := compileExpression(rule, ko)
-		w.lnPrint("return true")
+		w.lnPrint("match = true")
+		w.lnPrint("return")
 		if ko.used {
 			ko.restore(cko.pos, cko.thPos)
-			w.lnPrint("return false")
+			w.lnPrint("return")
 		}
 		w.indent--
 		w.lnPrint("},")
@@ -1606,6 +1607,7 @@ type label struct {
 	name    string
 	*writer
 	used           bool
+	saved          bool
 	savedBlockOpen bool
 }
 
@@ -1641,6 +1643,10 @@ func (w *label) label() {
 }
 
 func (w *label) jump() {
+	if !w.saved && w.sid == 0 {
+		w.lnPrint("return")
+		return
+	}
 	w.lnPrint("goto %v", w)
 	w.used = true
 }
@@ -1666,7 +1672,10 @@ func (w *label) save() {
 		w.lnPrint("thunkPosition%d := thunkPosition", sid)
 	case save.pos:
 		w.lnPrint("position%d := position", sid)
+	default:
+		return
 	}
+	w.saved = true
 }
 
 func (w *label) unsafe() bool {
@@ -1720,8 +1729,8 @@ func (w *label) lrestore(label *label, savePos, saveThPos bool) {
 }
 
 func (w *label) cJump(jumpIfTrue bool, format string, a ...interface{}) {
-	w.used = true
 	if w.dryRun {
+		w.used = true
 		return
 	}
 	if jumpIfTrue {
@@ -1731,7 +1740,12 @@ func (w *label) cJump(jumpIfTrue bool, format string, a ...interface{}) {
 	}
 	w.lnPrint(format, a...)
 	fmt.Fprint(w, " {")
-	w.lnPrint("\tgoto %v", w)
+	if !w.saved && w.sid == 0 {
+		w.lnPrint("return")
+	} else {
+		w.lnPrint("\tgoto %v", w)
+		w.used = true
+	}
 	w.lnPrint("}")
 }
 
