@@ -39,7 +39,7 @@ func main() {
 	p := &Peg{Tree: peg.New(*inline, *_switch), Buffer: string(buffer)}
 	p.Init()
 	if err = p.Parse(0); err == nil {
-		w := bufio.NewWriter(os.Stdout)		
+		w := bufio.NewWriter(os.Stdout)
 		p.Compile(w, *optiFlags)
 		w.Flush()
 	} else {
