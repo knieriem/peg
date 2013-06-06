@@ -24,10 +24,12 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/knieriem/peg"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
+
+	"github.com/knieriem/peg"
 )
 
 %}

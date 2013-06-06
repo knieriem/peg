@@ -13,6 +13,8 @@ package {{.}}
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/knieriem/peg"
 )
 {{end}}
@@ -85,7 +87,11 @@ func (p *{{def "Peg"}}) parseErr() (err error) {
 		}
 	}
 	if p.Max >= len(p.Buffer) {
-		err = &{{id "u"}}nexpectedEOFError{after}
+		if p.Min == p.Max {
+			err = io.EOF
+		} else {
+			err = &{{id "u"}}nexpectedEOFError{after}
+		}
 	} else {
 		err = &{{id "u"}}nexpectedCharError{after, pos, p.Buffer[p.Max]}
 	}

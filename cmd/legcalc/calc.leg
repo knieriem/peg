@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"io"
 	"os"
 	"strconv"
 )
@@ -64,6 +65,9 @@ func main() {
 			calc.ResetBuffer(s)
 			for {
 				if err := calc.Parse(ruleStmt); err != nil {
+					if err == io.EOF {
+						break
+					}
 					log.Fatal(err)
 				}
 			}
