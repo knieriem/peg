@@ -1102,7 +1102,7 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 			w.lnPrint("do(%d)", node.(Action).GetId())
 			chgok.thPos = true
 		case TypeCommit:
-			ko.cJump(false, "(commit(thunkPosition0))")
+			ko.cJump(false, "(p.commit(thunkPosition0))")
 			chgko.thPos = true
 		case TypeBegin:
 			if t.Actions != nil {

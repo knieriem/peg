@@ -26,11 +26,14 @@ type {{def "Peg"}} struct {
 	Buffer string
 	Min, Max int
 	rules [{{numRules}}]func() bool
+	commit func(int)bool
 	ResetBuffer	func(string) string
 }
 
 func (p *{{def "Peg"}}) Parse(ruleId int) (err error) {
 	if p.rules[ruleId]() {
+		// Make sure thunkPosition is 0 (there may be a yyPop action on the stack).
+		p.commit(0)
 		return
 	}
 	return p.parseErr()
@@ -170,7 +173,7 @@ func (p *{{def "Peg"}}) Init() {
 		return
 	}
 {{	if hasCommit}}
-	commit := func(thunkPosition0 int) bool {
+	p.commit = func(thunkPosition0 int) bool {
 		if thunkPosition0 == 0 {
 			s := ""
 			for _, t := range thunks[:thunkPosition] {
