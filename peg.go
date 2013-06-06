@@ -1452,7 +1452,6 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 		}
 		w.setLabelBase()
 		ko := w.newLabel("ko")
-		ko.sid = 0
 		w.lnPrint("/* %v ", rule.GetId())
 		printRule(rule)
 		print(" */")
@@ -1566,6 +1565,7 @@ type writer struct {
 	dryRun             bool
 	savedIndent        int
 	saveFlags          []saveFlags
+	nSaveSections      int
 	elimRestore        bool
 }
 
@@ -1600,6 +1600,7 @@ func (w *writer) setDry(on bool) {
 func (w *writer) setLabelBase() {
 	w.labelBase = w.nLabels
 	w.labelNameFirstUsed = make(map[string]int, 16)
+	w.nSaveSections = 0
 }
 
 type label struct {
@@ -1617,7 +1618,7 @@ func (w *writer) newLabel(name string) (l *label) {
 	if w.dryRun {
 		w.saveFlags = append(w.saveFlags, saveFlags{})
 	}
-	l = &label{id: i, sid: i, name: "l", writer: w}
+	l = &label{id: i, sid: w.nSaveSections, name: "l", writer: w}
 	if name != "" {
 		l.name = name
 		if m := w.labelNameFirstUsed; m != nil {
@@ -1661,17 +1662,14 @@ func (w *label) saveBlock() {
 }
 func (w *label) save() {
 	save := w.saveFlags[w.id]
-	sid := w.sid
-	if sid != 0 {
-		sid -= w.labelBase + 1
-	}
+	w.nSaveSections++
 	switch {
 	case save.pos && save.thPos:
-		w.lnPrint("position%d, thunkPosition%d := position, thunkPosition", sid, sid)
+		w.lnPrint("position%d, thunkPosition%d := position, thunkPosition", w.sid, w.sid)
 	case !save.pos && save.thPos:
-		w.lnPrint("thunkPosition%d := thunkPosition", sid)
+		w.lnPrint("thunkPosition%d := thunkPosition", w.sid)
 	case save.pos:
-		w.lnPrint("position%d := position", sid)
+		w.lnPrint("position%d := position", w.sid)
 	default:
 		return
 	}
@@ -1696,18 +1694,14 @@ func (w *label) lrestore(label *label, savePos, saveThPos bool) {
 		savePos = true
 		saveThPos = true
 	}
-	sid := w.sid
-	if sid != 0 {
-		sid -= w.labelBase + 1
-	}
 	switch {
 	case savePos && saveThPos:
-		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", sid, sid)
+		w.lnPrint("position, thunkPosition = position%d, thunkPosition%d", w.sid, w.sid)
 	case !savePos && saveThPos:
-		w.lnPrint("thunkPosition = thunkPosition%d", sid)
+		w.lnPrint("thunkPosition = thunkPosition%d", w.sid)
 		stats.elimRestore.pos++
 	case savePos:
-		w.lnPrint("position = position%d", sid)
+		w.lnPrint("position = position%d", w.sid)
 		stats.elimRestore.thunkPos++
 	default:
 		stats.elimRestore.thunkPos++
