@@ -1735,7 +1735,7 @@ func (w *label) cJump(jumpIfTrue bool, format string, a ...interface{}) {
 	w.lnPrint(format, a...)
 	fmt.Fprint(w, " {")
 	if !w.saved && w.sid == 0 {
-		w.lnPrint("return")
+		w.lnPrint("\treturn")
 	} else {
 		w.lnPrint("\tgoto %v", w)
 		w.used = true
