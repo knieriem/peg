@@ -1207,7 +1207,9 @@ func (t *Tree) Compile(out io.Writer, optiFlags string) {
 				} else {
 					updateFlags(compile(node, done))
 				}
-				w.lnPrint("break")
+				if w.afterLabel {
+					w.lnPrint("break")
+				}
 				w.indent--
 				if element.Next() == nil {
 					w.lnPrint("default:")
@@ -1562,6 +1564,7 @@ type writer struct {
 	nLabels            int
 	labelBase          int
 	labelNameFirstUsed map[string]int
+	afterLabel         bool
 	dryRun             bool
 	savedIndent        int
 	saveFlags          []saveFlags
@@ -1640,6 +1643,7 @@ func (w *label) String() string {
 func (w *label) label() {
 	w.indent--
 	w.lnPrint("%v:", w)
+	w.afterLabel = true
 	w.indent++
 }
 
@@ -1752,6 +1756,7 @@ func (w *writer) lnPrint(format string, a ...interface{}) {
 		s += "\t"
 	}
 	fmt.Fprintf(w, s+format, a...)
+	w.afterLabel = false
 }
 
 type statValues struct {
